@@ -1,0 +1,56 @@
+:root {
+  font-family: "Avenir Next", "Helvetica Neue", sans-serif;
+  color: #111827;
+  background: #f4f1e8;
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; }
+button, textarea { font: inherit; }
+button { cursor: pointer; }
+main { min-height: 100vh; display: grid; grid-template-columns: 280px 1fr; }
+aside { background: #111827; color: #fff; padding: 2rem; }
+aside h1 { font: 900 5rem/1 "Arial Black", "Avenir Next", sans-serif; margin: 2rem 0 0; color: #f6c945; }
+.kicker { text-transform: uppercase; letter-spacing: 0.16em; font-weight: 600; font-size: 0.72rem; color: #d0a916; }
+.process, .refresh { width: 100%; padding: 0.7rem; border: 1px solid #667085; color: white; }
+.process { background: #f6c945; color: #111827; border-color: #f6c945; margin-top: 1rem; font-weight: 700; }
+.refresh { background: transparent; margin: 0.6rem 0 2rem; }
+nav { display: grid; gap: 0.5rem; }
+nav button { text-align: left; color: #fff; background: #1f2937; border: 0; padding: 0.9rem; }
+nav button.active { background: #f6c945; color: #111827; }
+nav span, nav small { display: block; }
+nav small { margin-top: 0.25rem; opacity: 0.75; }
+.workspace { padding: 2rem 4vw 5rem; background-image: linear-gradient(#d8d2c3 1px, transparent 1px); background-size: 100% 38px; }
+header, .context, .finding-title, .decision > div { display: flex; justify-content: space-between; gap: 1rem; align-items: center; }
+header { background: #f4f1e8; border-bottom: 4px solid #111827; padding-bottom: 1.3rem; }
+h2 { font: 900 clamp(2.4rem, 6vw, 5rem)/1 "Arial Black", "Avenir Next", sans-serif; margin: 0; text-transform: uppercase; }
+.boundary { margin: 1rem 0 0; padding: 0.75rem 1rem; background: #e9e5d9; border-left: 4px solid #d0a916; font-size: 0.86rem; }
+.context { margin: 2rem 0; padding: 1rem; background: #fff; border: 1px solid #111827; }
+.findings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+article { padding: 1.25rem; background: #fff; border: 1px solid #111827; box-shadow: 5px 5px 0 #111827; }
+h3 { margin: 0; text-transform: capitalize; }
+.result { font-weight: 600; padding: 0.25rem 0.5rem; border: 1px solid currentColor; }
+.result.match { color: #18634b; background: #dff5e9; }
+.result.mismatch { color: #9f1d20; background: #ffe3dd; }
+dl { display: grid; grid-template-columns: 85px 1fr; gap: 0.4rem; font-size: 0.86rem; }
+dt { font-weight: 600; }
+dd { margin: 0; overflow-wrap: anywhere; }
+.decision { margin-top: 2rem; border: 3px solid #111827; background: #f6c945; padding: 1.5rem; }
+label { display: grid; gap: 0.5rem; font-weight: 600; }
+textarea { min-height: 100px; padding: 0.8rem; resize: vertical; }
+.decision > div { justify-content: flex-end; margin-top: 1rem; }
+.decision button, .login-card button { border: 2px solid #111827; padding: 0.8rem 1.4rem; font-weight: 600; }
+.reject { background: #fff; }
+.approve { background: #111827; color: #fff; }
+.message, .empty { margin-top: 2rem; padding: 2rem; background: #fff; border: 1px solid #111827; }
+.login-shell { grid-template-columns: 1fr; place-items: center; padding: 2rem; background: #111827; }
+.login-card { width: min(900px, 100%); padding: clamp(2rem, 7vw, 6rem); background: #f6c945; border: 5px solid white; box-shadow: 15px 15px 0 #d0a916; }
+.login-card h1 { font: 900 clamp(3rem, 8vw, 7.5rem)/0.9 "Arial Black", "Avenir Next", sans-serif; text-transform: uppercase; margin: 1rem 0 2rem; }
+.login-card .kicker { color: #111827; }
+.login-card button { background: #111827; color: white; }
+@media (max-width: 850px) {
+  main { grid-template-columns: 1fr; }
+  aside { min-height: auto; }
+  .findings { grid-template-columns: 1fr; }
+}
