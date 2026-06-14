@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from .models import DecisionArtifact, ReviewPackage, SubmissionArtifact
 
@@ -18,14 +19,30 @@ class ArtifactStore:
 
     def _write_once(self, path: Path, payload: dict[str, Any]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        staging = self.root / "staging" / f"{path.parent.name}-{path.name}.{os.getpid()}.tmp"
-        staging.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+        staging = self.root / "staging" / f"{path.parent.name}-{path.name}.{uuid4().hex}.tmp"
+        claim = path.with_name(f".{path.name}.publish-lock")
+        claim_acquired = False
+
         try:
-            os.link(staging, path)
+            with staging.open("w", encoding="utf-8") as handle:
+                json.dump(payload, handle, indent=2, default=str)
+                handle.flush()
+                os.fsync(handle.fileno())
+
+            # Directory creation is an atomic, cross-platform claim operation.
+            claim.mkdir()
+            claim_acquired = True
+            if path.exists():
+                raise ArtifactExistsError(str(path))
+
+            # Staging and destination share a filesystem, so replace publishes atomically.
+            os.replace(staging, path)
         except FileExistsError as exc:
             raise ArtifactExistsError(str(path)) from exc
         finally:
             staging.unlink(missing_ok=True)
+            if claim_acquired:
+                claim.rmdir()
 
     def save_submission(self, artifact: SubmissionArtifact) -> None:
         path = self.root / "submissions" / artifact.submission_id / "submission.json"
@@ -71,4 +88,3 @@ class ArtifactStore:
     def get_decision(self, submission_id: str, application_id: str) -> dict[str, Any] | None:
         path = self.root / "decisions" / submission_id / f"{application_id}.json"
         return self.read_json(path) if path.exists() else None
-

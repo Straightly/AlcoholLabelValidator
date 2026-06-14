@@ -73,6 +73,14 @@ def test_submit_review_decide_flow(tmp_path: Path) -> None:
     )
     assert duplicate.status_code == 409
 
+    preserved = client.get(
+        "/api/submissions",
+        params={"source_label": "Synthetic direct-entry demo"},
+    )
+    assert preserved.json()[0]["applications"][0]["decision"]["decision"] == "Approved"
+    assert not list(tmp_path.rglob("*.publish-lock"))
+    assert not list((tmp_path / "staging").glob("*.tmp"))
+
 
 def test_process_sample_intake_is_idempotent(tmp_path: Path) -> None:
     fixture_dir = Path(__file__).resolve().parents[2] / "fixtures" / "intake"
