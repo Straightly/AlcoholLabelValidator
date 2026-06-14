@@ -1,0 +1,23 @@
+{
+  "submission_id": "my-bottle-001",
+  "source_label": "Local retail bottle photograph",
+  "submission_type": "single",
+  "applications": [
+    {
+      "application_id": "my-bottle-application-001",
+      "beverage_category": "distilled_spirits",
+      "fields": {
+        "brand_name": "ENTER BRAND NAME",
+        "class_type": "ENTER CLASS OR TYPE",
+        "alcohol_content": "ENTER ALCOHOL CONTENT, FOR EXAMPLE 45% Alc./Vol. (90 Proof)",
+        "net_contents": "ENTER NET CONTENTS, FOR EXAMPLE 750 mL",
+        "producer_name_address": "ENTER PRODUCER OR BOTTLER NAME AND ADDRESS",
+        "country_of_origin": "ENTER COUNTRY OF ORIGIN OR REMOVE THIS LINE"
+      },
+      "image_filenames": [
+        "my-bottle-front.jpg",
+        "my-bottle-back.jpg"
+      ]
+    }
+  ]
+}

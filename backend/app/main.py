@@ -64,7 +64,7 @@ def create_app(
             "applications_preprocessed": 0,
             "applications_with_errors": 0,
         }
-        for path in sorted(intake.glob("*.json")):
+        for path in sorted(intake.rglob("*.json")):
             result["packages_found"] += 1
             try:
                 payload = SubmissionCreate.model_validate_json(path.read_text(encoding="utf-8"))

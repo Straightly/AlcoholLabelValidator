@@ -264,6 +264,34 @@ Open `http://127.0.0.1:8000/`. Press `Ctrl+C` to stop the application.
 | `ALV_DATA_DIR` | `./data` | Runtime artifact directory |
 | `ALV_FIXTURE_DIR` | `./fixtures/intake` | Sample intake directory |
 
+## Add Your Own Bottle Photographs
+
+Use:
+
+```text
+fixtures/intake/user/
+```
+
+Copy the photographs and their JSON manifest into that same folder. Editable
+templates are provided:
+
+- `fixtures/intake/user/single-submission.json.example`
+- `fixtures/intake/user/batch-submission.json.example`
+
+Copy a template to a filename ending in `.json`, fill in the fields, and make
+each `image_filenames` value exactly match a photograph in the folder. Use a
+new `submission_id` and new `application_id` values for every test package.
+
+Then:
+
+1. Start the application with `ALV_OCR_ENGINE=paddle`.
+2. Select `Reset Demo Data`.
+3. Select `Process Sample Intake`.
+4. Open the new applications in the review queue.
+
+The `user` folder is scanned automatically. Filled manifests and photographs
+there are ignored by Git.
+
 ## Manual Acceptance Test
 
 Start with the seeded demo state.

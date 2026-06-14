@@ -1,0 +1,38 @@
+{
+  "submission_id": "my-bottle-batch-001",
+  "source_label": "Local retail bottle photograph batch",
+  "submission_type": "batch",
+  "applications": [
+    {
+      "application_id": "my-bottle-application-001",
+      "beverage_category": "distilled_spirits",
+      "fields": {
+        "brand_name": "ENTER FIRST BRAND NAME",
+        "class_type": "ENTER FIRST CLASS OR TYPE",
+        "alcohol_content": "ENTER FIRST ALCOHOL CONTENT",
+        "net_contents": "ENTER FIRST NET CONTENTS",
+        "producer_name_address": "ENTER FIRST PRODUCER OR BOTTLER NAME AND ADDRESS"
+      },
+      "image_filenames": [
+        "first-bottle-front.jpg",
+        "first-bottle-back.jpg"
+      ]
+    },
+    {
+      "application_id": "my-bottle-application-002",
+      "beverage_category": "wine",
+      "fields": {
+        "brand_name": "ENTER SECOND BRAND NAME",
+        "class_type": "ENTER SECOND CLASS OR TYPE",
+        "alcohol_content": "ENTER SECOND ALCOHOL CONTENT",
+        "net_contents": "ENTER SECOND NET CONTENTS",
+        "producer_name_address": "ENTER SECOND PRODUCER OR BOTTLER NAME AND ADDRESS",
+        "country_of_origin": "ENTER COUNTRY OF ORIGIN OR REMOVE THIS LINE"
+      },
+      "image_filenames": [
+        "second-bottle-front.jpg",
+        "second-bottle-back.jpg"
+      ]
+    }
+  ]
+}

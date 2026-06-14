@@ -38,6 +38,11 @@ logs/
 tmp/
 *.log
 
+# Local bottle photographs and filled intake manifests
+fixtures/intake/user/*
+!fixtures/intake/user/README.md
+!fixtures/intake/user/*.json.example
+
 # Locally downloaded OCR and vision models
 models/
 .paddleocr/
