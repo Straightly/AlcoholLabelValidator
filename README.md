@@ -64,7 +64,7 @@ compliance.
 | Producer/bottler name and address | Compare submitted value with extracted evidence |
 | Country of origin | Compare when supplied and applicable |
 | Government warning | Check the prescribed wording, capitalization, and punctuation |
-| Warning presentation | Evaluate heading prominence and probable boldness using image/style signals; physical measurements require calibrated evidence |
+| Warning presentation | Show the source image and quality evidence for officer inspection; physical measurements require calibrated evidence |
 
 Each check returns `Match`, `Mismatch`, `Needs Human Review`, or
 `Not Evaluated`. The officer remains responsible for the final decision.
@@ -78,7 +78,7 @@ Each check returns `Match`, `Mismatch`, `Needs Human Review`, or
 - Deterministic field comparison and versioned selected TTB checks
 - Separate immutable submission, analysis, and decision artifacts
 - One FastAPI process serving the API and built React application
-- Local runtime processing using packaged OCR models and application assets
+- Local runtime processing using prepared OCR models and application assets
 
 ## Tools
 
@@ -106,6 +106,9 @@ not evaluated by this prototype.
 ## Documentation
 
 - [Assumptions](docs/ASSUMPTIONS.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Evaluation](docs/EVALUATION.md)
+- [AI use](docs/AI_USE.md)
 
 ## Repository Layout
 
@@ -115,7 +118,6 @@ backend/tests/       Unit, integration, batch, and performance tests
 portals/officer/     React compliance-officer application
 fixtures/intake/     Seeded non-PII application packages and label images
 fixtures/evaluation/ Controlled OCR and rule-evaluation cases
-models/              Prepared local OCR model files
 scripts/             Model preparation and evaluation utilities
 data/                Generated runtime artifacts; ignored by Git
 run.sh               Linux/macOS application launcher
@@ -144,7 +146,7 @@ Source installation requires HTTPS access to:
 - The Git repository host, unless a ZIP archive is used
 - `pypi.org` and `files.pythonhosted.org`, or an approved Python package mirror
 - `registry.npmjs.org`, or an approved npm registry mirror
-- The configured OCR model source, or an approved offline model bundle
+- The configured OCR model source
 
 Package and model access is needed only during setup. Runtime processing is
 local and does not require outbound access.
@@ -182,23 +184,19 @@ git clone https://github.com/Straightly/AlcoholLabelValidator.git
 cd AlcoholLabelValidator
 python3.12 -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
-.venv/bin/python -m pip install -e ".[dev]"
+.venv/bin/python -m pip install -e ".[dev,ocr]"
 npm --prefix portals/officer ci
 npm --prefix portals/officer run build
 .venv/bin/python scripts/prepare_models.py
 chmod +x run.sh
 ```
 
-Use `python3.11` instead when Python 3.11 is installed. A repository ZIP and an
-approved offline model bundle may be used instead of direct downloads:
-
-```bash
-.venv/bin/python scripts/prepare_models.py --archive /path/to/model-bundle.zip
-```
+Use `python3.11` instead when Python 3.11 is installed.
 
 Start the application:
 
 ```bash
+export ALV_OCR_ENGINE=paddle
 ./run.sh
 ```
 
@@ -240,22 +238,18 @@ git clone https://github.com/Straightly/AlcoholLabelValidator.git
 Set-Location .\AlcoholLabelValidator
 py -3.12 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
+.\.venv\Scripts\python.exe -m pip install -e ".[dev,ocr]"
 npm.cmd --prefix portals/officer ci
 npm.cmd --prefix portals/officer run build
 .\.venv\Scripts\python.exe scripts\prepare_models.py
 ```
 
-Use `py -3.11` instead when Python 3.11 is installed. A repository ZIP and an
-approved offline model bundle may be used instead of direct downloads:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\prepare_models.py --archive C:\path\to\model-bundle.zip
-```
+Use `py -3.11` instead when Python 3.11 is installed.
 
 Start the application:
 
 ```powershell
+$env:ALV_OCR_ENGINE = "paddle"
 powershell -ExecutionPolicy Bypass -File .\run.ps1
 ```
 
@@ -269,7 +263,6 @@ Open `http://127.0.0.1:8000/`. Press `Ctrl+C` to stop the application.
 | `ALV_PORT` | `8000` | HTTP port |
 | `ALV_DATA_DIR` | `./data` | Runtime artifact directory |
 | `ALV_FIXTURE_DIR` | `./fixtures/intake` | Sample intake directory |
-| `ALV_MODEL_DIR` | `./models` | Prepared OCR model directory |
 
 ## Manual Acceptance Test
 
@@ -367,13 +360,13 @@ publication-safe file types, and removal of EXIF/GPS metadata.
 Linux:
 
 ```bash
-.venv/bin/python scripts/evaluate.py --fixtures fixtures/evaluation --max-latency-ms 5000
+.venv/bin/python scripts/evaluate.py --max-ms 5000
 ```
 
 Windows:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\evaluate.py --fixtures fixtures\evaluation --max-latency-ms 5000
+.\.venv\Scripts\python.exe scripts\evaluate.py --max-ms 5000
 ```
 
 The report includes:
@@ -398,11 +391,11 @@ Expected responses:
 
 ```json
 {"status":"ok"}
-{"status":"ready","ocr":"ready"}
+{"status":"ready","ready":true,"engine":"PaddleOCR","detail":"Local PaddleOCR model loaded."}
 ```
 
-The readiness endpoint returns success only after the local OCR engine and model
-files are loaded and warmed.
+The readiness endpoint returns success only after the configured local OCR
+engine and model files are loaded.
 
 ## Runtime Network Test
 
@@ -433,8 +426,8 @@ Windows:
 Remove-Item -Recurse -Force .\data
 ```
 
-The directory is recreated on the next startup. Preserve `fixtures/` and
-`models/`.
+The directory is recreated on the next startup. Preserve `fixtures/` and the
+local PaddleOCR model cache prepared during setup.
 
 ## Runtime Files
 
@@ -443,7 +436,6 @@ data/
   submissions/       Imported package data and copied label images
   preprocessed/      Extraction, evidence, results, timing, and rule versions
   decisions/         Officer decisions and reasons
-  errors/            Terminal processing-error artifacts
   staging/           Temporary publication files
 ```
 

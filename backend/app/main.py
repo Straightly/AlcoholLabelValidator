@@ -1,34 +1,40 @@
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from .analysis import analyze_application
 from .models import DecisionArtifact, DecisionCreate, SubmissionArtifact, SubmissionCreate
 from .store import ArtifactExistsError, ArtifactStore
+from .vision import LocalVisionEngine
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
 
 
 def create_app(
     data_dir: Path | None = None,
     fixture_dir: Path | None = None,
 ) -> FastAPI:
-    app = FastAPI(title="Alcohol Label Validator API", version="0.1.0")
     root = data_dir or Path(os.getenv("ALV_DATA_DIR", "./data"))
-    intake = fixture_dir or Path(
-        os.getenv(
-            "ALV_FIXTURE_DIR",
-            str(Path(__file__).resolve().parents[2] / "fixtures" / "intake"),
-        )
-    )
+    intake = fixture_dir or Path(os.getenv("ALV_FIXTURE_DIR", str(ROOT_DIR / "fixtures" / "intake")))
     store = ArtifactStore(root)
+    vision = LocalVisionEngine()
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI):
+        vision.prepare()
+        yield
+
+    app = FastAPI(title="Alcohol Label Validator API", version="1.0.0", lifespan=lifespan)
     app.state.store = store
     app.state.fixture_dir = intake
+    app.state.vision = vision
 
-    origins = os.getenv(
-        "ALV_ALLOWED_ORIGINS",
-        "http://localhost:5174",
-    ).split(",")
+    origins = os.getenv("ALV_ALLOWED_ORIGINS", "http://localhost:5174").split(",")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
@@ -40,6 +46,15 @@ def create_app(
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    @app.get("/api/ready")
+    def ready() -> dict[str, object]:
+        return {
+            "status": "ready" if vision.ready else "initializing",
+            "ready": vision.ready,
+            "engine": vision.engine_name,
+            "detail": vision.detail,
+        }
+
     @app.post("/api/demo/process-sample-intake")
     def process_sample_intake() -> dict[str, int]:
         result = {
@@ -47,49 +62,87 @@ def create_app(
             "packages_imported": 0,
             "packages_skipped": 0,
             "applications_preprocessed": 0,
+            "applications_with_errors": 0,
         }
         for path in sorted(intake.glob("*.json")):
             result["packages_found"] += 1
-            payload = SubmissionCreate.model_validate_json(path.read_text(encoding="utf-8"))
+            try:
+                payload = SubmissionCreate.model_validate_json(path.read_text(encoding="utf-8"))
+            except Exception:
+                result["applications_with_errors"] += 1
+                continue
             artifact = SubmissionArtifact(**payload.model_dump())
             try:
                 store.save_submission(artifact)
             except ArtifactExistsError:
                 result["packages_skipped"] += 1
                 continue
+            image_names = [name for item in artifact.applications for name in item.image_filenames]
+            store.import_images(artifact.submission_id, path.parent, image_names)
             result["packages_imported"] += 1
             for application in artifact.applications:
-                store.save_review(analyze_application(artifact, application))
+                review = analyze_application(
+                    artifact,
+                    application,
+                    store.image_dir(artifact.submission_id),
+                    vision,
+                )
+                store.save_review(review)
                 result["applications_preprocessed"] += 1
+                result["applications_with_errors"] += int(review.processing_error is not None)
         return result
+
+    @app.post("/api/demo/reset")
+    def reset_demo() -> dict[str, str]:
+        store.reset()
+        return {"status": "reset"}
 
     @app.post("/api/submissions", status_code=201)
     def create_submission(payload: SubmissionCreate) -> dict[str, object]:
         artifact = SubmissionArtifact(**payload.model_dump())
         try:
             store.save_submission(artifact)
+            store.import_images(
+                artifact.submission_id,
+                intake,
+                [name for item in artifact.applications for name in item.image_filenames],
+            )
             for application in artifact.applications:
-                store.save_review(analyze_application(artifact, application))
+                store.save_review(
+                    analyze_application(
+                        artifact,
+                        application,
+                        store.image_dir(artifact.submission_id),
+                        vision,
+                    )
+                )
         except ArtifactExistsError as exc:
             raise HTTPException(status_code=409, detail="Artifact already exists.") from exc
         return submission_view(store, artifact.model_dump(mode="json"))
+
+    @app.get("/api/images/{submission_id}/{filename}")
+    def get_image(submission_id: str, filename: str) -> FileResponse:
+        if filename != Path(filename).name:
+            raise HTTPException(status_code=400, detail="Invalid image filename.")
+        path = store.image_dir(submission_id) / filename
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail="Image not found.")
+        return FileResponse(path)
 
     @app.get("/api/submissions")
     def list_submissions(source_label: str | None = None) -> list[dict[str, object]]:
         submissions = store.list_submissions()
         if source_label:
-            submissions = [
-                item for item in submissions if item["source_label"] == source_label
-            ]
+            submissions = [item for item in submissions if item["source_label"] == source_label]
         return [submission_view(store, item) for item in submissions]
 
     @app.get("/api/review-queue")
     def review_queue() -> list[dict[str, object]]:
-        queue = []
-        for review in store.list_reviews():
-            if not store.get_decision(review["submission_id"], review["application_id"]):
-                queue.append(review)
-        return queue
+        return [
+            review
+            for review in store.list_reviews()
+            if not store.get_decision(review["submission_id"], review["application_id"])
+        ]
 
     @app.get("/api/reviews/{submission_id}/{application_id}")
     def get_review(submission_id: str, application_id: str) -> dict[str, object]:
@@ -107,9 +160,15 @@ def create_app(
         payload: DecisionCreate,
     ) -> dict[str, object]:
         try:
-            store.get_review(submission_id, application_id)
+            review = store.get_review(submission_id, application_id)
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail="Review package not found.") from exc
+        unresolved = any(item["result"] != "Match" for item in review["findings"])
+        if payload.decision == "Approved" and unresolved and not payload.override_note:
+            raise HTTPException(
+                status_code=422,
+                detail="An override note is required to approve unresolved findings.",
+            )
         artifact = DecisionArtifact(
             **payload.model_dump(),
             submission_id=submission_id,
@@ -121,6 +180,17 @@ def create_app(
             raise HTTPException(status_code=409, detail="A decision already exists.") from exc
         return artifact.model_dump(mode="json")
 
+    frontend = ROOT_DIR / "portals" / "officer" / "dist"
+    if frontend.is_dir():
+        assets = frontend / "assets"
+        if assets.is_dir():
+            app.mount("/assets", StaticFiles(directory=assets), name="assets")
+
+        @app.get("/{path:path}", include_in_schema=False)
+        def frontend_app(path: str) -> FileResponse:
+            candidate = frontend / path
+            return FileResponse(candidate if candidate.is_file() else frontend / "index.html")
+
     return app
 
 
@@ -130,14 +200,16 @@ def submission_view(store: ArtifactStore, submission: dict[str, object]) -> dict
     for application in submission["applications"]:
         application_id = application["application_id"]
         decision = store.get_decision(str(submission["submission_id"]), application_id)
-        status = "Completed" if decision else "Preprocessed"
+        try:
+            review = store.get_review(str(submission["submission_id"]), application_id)
+            status = "Completed" if decision else (
+                "Needs Attention" if review.get("processing_error") else "Ready For Review"
+            )
+        except FileNotFoundError:
+            status = "Processing"
         completed += int(decision is not None)
         applications.append(
-            {
-                "application_id": application_id,
-                "status": status,
-                "decision": decision,
-            }
+            {"application_id": application_id, "status": status, "decision": decision}
         )
     aggregate = "Completed" if completed == len(applications) else (
         "In Review" if completed else "Ready For Review"

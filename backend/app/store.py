@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -48,6 +49,24 @@ class ArtifactStore:
         path = self.root / "submissions" / artifact.submission_id / "submission.json"
         self._write_once(path, artifact.model_dump(mode="json"))
 
+    def import_images(self, submission_id: str, source_dir: Path, filenames: list[str]) -> None:
+        target = self.root / "submissions" / submission_id / "images"
+        target.mkdir(parents=True, exist_ok=True)
+        for filename in filenames:
+            source = source_dir / filename
+            if not source.is_file():
+                continue
+            destination = target / filename
+            if destination.exists():
+                continue
+            shutil.copy2(source, destination)
+            sidecar = source.with_suffix(source.suffix + ".ocr.txt")
+            if sidecar.is_file():
+                shutil.copy2(sidecar, destination.with_suffix(destination.suffix + ".ocr.txt"))
+
+    def image_dir(self, submission_id: str) -> Path:
+        return self.root / "submissions" / submission_id / "images"
+
     def save_review(self, artifact: ReviewPackage) -> None:
         path = (
             self.root
@@ -88,3 +107,9 @@ class ArtifactStore:
     def get_decision(self, submission_id: str, application_id: str) -> dict[str, Any] | None:
         path = self.root / "decisions" / submission_id / f"{application_id}.json"
         return self.read_json(path) if path.exists() else None
+
+    def reset(self) -> None:
+        for name in ("submissions", "preprocessed", "decisions", "staging"):
+            path = self.root / name
+            shutil.rmtree(path, ignore_errors=True)
+            path.mkdir(parents=True, exist_ok=True)

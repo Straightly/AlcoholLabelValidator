@@ -2,7 +2,6 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from backend.app.analysis import HEALTH_WARNING
 from backend.app.main import create_app
 
 
@@ -22,85 +21,128 @@ def sample_submission() -> dict:
                     "net_contents": "750 mL",
                     "producer_name_address": "Old Tom Distillery, Louisville, Kentucky",
                 },
-                "image_filenames": ["front.png", "back.png"],
-                "label_text": (
-                    "OLD TOM DISTILLERY Kentucky Straight Bourbon Whiskey "
-                    "45% Alc./Vol. (90 Proof) 750 mL "
-                    "Old Tom Distillery, Louisville, Kentucky "
-                    f"{HEALTH_WARNING}"
-                ),
+                "image_filenames": [
+                    "sample-compliant-front.png",
+                    "sample-compliant-back.png",
+                ],
             }
         ],
     }
 
 
 def test_submit_review_decide_flow(tmp_path: Path) -> None:
-    client = TestClient(create_app(tmp_path))
+    fixture_dir = Path(__file__).resolve().parents[2] / "fixtures" / "intake"
+    client = TestClient(create_app(tmp_path, fixture_dir))
 
-    created = client.post("/api/submissions", json=sample_submission())
-    assert created.status_code == 201
-    assert created.json()["status"] == "Ready For Review"
+    with client:
+        created = client.post("/api/submissions", json=sample_submission())
+        assert created.status_code == 201
+        assert created.json()["status"] == "Ready For Review"
 
-    queue = client.get("/api/review-queue")
-    assert queue.status_code == 200
-    assert len(queue.json()) == 1
-    assert all(item["result"] == "Match" for item in queue.json()[0]["findings"])
+        queue = client.get("/api/review-queue")
+        assert queue.status_code == 200
+        assert len(queue.json()) == 1
+        assert len(queue.json()[0]["images"]) == 2
+        assert all(item["result"] == "Match" for item in queue.json()[0]["findings"])
 
-    decision = client.post(
-        "/api/reviews/submission-001/application-001/decision",
-        json={
-            "decision": "Approved",
-            "public_reason": "All implemented checks match the supplied evidence.",
-            "officer_name": "Demo Compliance Officer",
-        },
-    )
-    assert decision.status_code == 201
+        decision = client.post(
+            "/api/reviews/submission-001/application-001/decision",
+            json={
+                "decision": "Approved",
+                "public_reason": "All implemented checks match the supplied evidence.",
+                "officer_name": "Demo Compliance Officer",
+            },
+        )
+        assert decision.status_code == 201
 
-    submissions = client.get(
-        "/api/submissions",
-        params={"source_label": "Synthetic direct-entry demo"},
-    )
-    assert submissions.json()[0]["status"] == "Completed"
-    assert submissions.json()[0]["applications"][0]["decision"]["decision"] == "Approved"
+        submissions = client.get(
+            "/api/submissions",
+            params={"source_label": "Synthetic direct-entry demo"},
+        )
+        assert submissions.json()[0]["status"] == "Completed"
+        assert submissions.json()[0]["applications"][0]["decision"]["decision"] == "Approved"
 
-    duplicate = client.post(
-        "/api/reviews/submission-001/application-001/decision",
-        json={
-            "decision": "Rejected",
-            "public_reason": "This second decision must not overwrite the first.",
-            "officer_name": "Another Officer",
-        },
-    )
-    assert duplicate.status_code == 409
+        duplicate = client.post(
+            "/api/reviews/submission-001/application-001/decision",
+            json={
+                "decision": "Rejected",
+                "public_reason": "This second decision must not overwrite the first.",
+                "officer_name": "Another Officer",
+            },
+        )
+        assert duplicate.status_code == 409
 
-    preserved = client.get(
-        "/api/submissions",
-        params={"source_label": "Synthetic direct-entry demo"},
-    )
-    assert preserved.json()[0]["applications"][0]["decision"]["decision"] == "Approved"
+        preserved = client.get(
+            "/api/submissions",
+            params={"source_label": "Synthetic direct-entry demo"},
+        )
+        assert preserved.json()[0]["applications"][0]["decision"]["decision"] == "Approved"
     assert not list(tmp_path.rglob("*.publish-lock"))
     assert not list((tmp_path / "staging").glob("*.tmp"))
 
 
 def test_process_sample_intake_is_idempotent(tmp_path: Path) -> None:
     fixture_dir = Path(__file__).resolve().parents[2] / "fixtures" / "intake"
-    client = TestClient(create_app(tmp_path, fixture_dir))
+    with TestClient(create_app(tmp_path, fixture_dir)) as client:
+        assert client.get("/api/ready").json()["ready"] is True
+        first = client.post("/api/demo/process-sample-intake")
+        assert first.status_code == 200
+        assert first.json() == {
+            "packages_found": 1,
+            "packages_imported": 1,
+            "packages_skipped": 0,
+            "applications_preprocessed": 2,
+            "applications_with_errors": 0,
+        }
+        queue = client.get("/api/review-queue").json()
+        assert len(queue) == 2
+        attention = next(item for item in queue if "attention" in item["application_id"])
+        assert any(item["result"] == "Mismatch" for item in attention["findings"])
 
-    first = client.post("/api/demo/process-sample-intake")
-    assert first.status_code == 200
-    assert first.json() == {
-        "packages_found": 1,
-        "packages_imported": 1,
-        "packages_skipped": 0,
-        "applications_preprocessed": 2,
-    }
-    assert len(client.get("/api/review-queue").json()) == 2
+        second = client.post("/api/demo/process-sample-intake")
+        assert second.status_code == 200
+        assert second.json()["packages_skipped"] == 1
 
-    second = client.post("/api/demo/process-sample-intake")
-    assert second.status_code == 200
-    assert second.json() == {
-        "packages_found": 1,
-        "packages_imported": 0,
-        "packages_skipped": 1,
-        "applications_preprocessed": 0,
-    }
+        assert client.post("/api/demo/reset").status_code == 200
+        assert client.get("/api/review-queue").json() == []
+
+
+def test_approval_requires_override_for_unresolved_findings(tmp_path: Path) -> None:
+    fixture_dir = Path(__file__).resolve().parents[2] / "fixtures" / "intake"
+    with TestClient(create_app(tmp_path, fixture_dir)) as client:
+        client.post("/api/demo/process-sample-intake")
+        review = next(
+            item
+            for item in client.get("/api/review-queue").json()
+            if "attention" in item["application_id"]
+        )
+        url = f"/api/reviews/{review['submission_id']}/{review['application_id']}/decision"
+        denied = client.post(
+            url,
+            json={
+                "decision": "Approved",
+                "public_reason": "Officer accepts the submitted evidence.",
+                "officer_name": "Demo Compliance Officer",
+            },
+        )
+        assert denied.status_code == 422
+        accepted = client.post(
+            url,
+            json={
+                "decision": "Approved",
+                "public_reason": "Officer accepts the submitted evidence.",
+                "officer_name": "Demo Compliance Officer",
+                "override_note": "Reviewed the original image manually.",
+            },
+        )
+        assert accepted.status_code == 201
+
+
+def test_frontend_and_images_are_served_by_fastapi(tmp_path: Path) -> None:
+    fixture_dir = Path(__file__).resolve().parents[2] / "fixtures" / "intake"
+    with TestClient(create_app(tmp_path, fixture_dir)) as client:
+        assert client.get("/").status_code == 200
+        client.post("/api/demo/process-sample-intake")
+        image = client.get("/api/images/sample-intake-001/sample-compliant-front.png")
+        assert image.status_code == 200
+        assert image.headers["content-type"].startswith("image/png")

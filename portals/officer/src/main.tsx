@@ -13,43 +13,71 @@ type Finding = {
   source: string;
 };
 
+type ImageEvidence = {
+  filename: string;
+  url: string;
+  extracted_text: string;
+  confidence: number;
+  width: number | null;
+  height: number | null;
+  blur_score: number | null;
+  glare_ratio: number | null;
+  quality_flags: string[];
+  engine: string;
+};
+
 type Review = {
   submission_id: string;
   application_id: string;
   source_label: string;
   processing_duration_ms: number;
+  images: ImageEvidence[];
   findings: Finding[];
   suggested_rejection_reason: string | null;
+  processing_error: string | null;
 };
+
+async function responseMessage(response: Response) {
+  const body = await response.json().catch(() => null);
+  return body?.detail ?? body?.message ?? response.statusText;
+}
 
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [queue, setQueue] = useState<Review[]>([]);
   const [selected, setSelected] = useState<Review | null>(null);
   const [reason, setReason] = useState("");
+  const [overrideNote, setOverrideNote] = useState("");
   const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
 
   async function refresh() {
     const response = await fetch("/api/review-queue");
-    const items = response.ok ? await response.json() : [];
-    setQueue(items);
-    setSelected((current) => current ?? items[0] ?? null);
-  }
-
-  async function processSampleIntake() {
-    const response = await fetch("/api/demo/process-sample-intake", { method: "POST" });
     if (!response.ok) {
-      setMessage(`Sample intake failed: ${await response.text()}`);
+      setMessage(`Queue could not be loaded: ${await responseMessage(response)}`);
       return;
     }
-    const result = await response.json();
-    setMessage(
-      result.packages_imported > 0
-        ? `Imported ${result.packages_imported} package and preprocessed ${result.applications_preprocessed} applications.`
-        : "Sample intake was already processed; no artifacts were overwritten."
+    const items: Review[] = await response.json();
+    setQueue(items);
+    setSelected((current) =>
+      current ? items.find((item) => item.application_id === current.application_id) ?? items[0] ?? null : items[0] ?? null
     );
-    setSelected(null);
-    await refresh();
+  }
+
+  async function runAction(url: string, success: (body: any) => string) {
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await fetch(url, { method: "POST" });
+      if (!response.ok) throw new Error(await responseMessage(response));
+      setMessage(success(await response.json()));
+      setSelected(null);
+      await refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "The operation failed.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   useEffect(() => {
@@ -57,11 +85,16 @@ function App() {
   }, [loggedIn]);
 
   useEffect(() => {
-    if (selected) setReason(selected.suggested_rejection_reason ?? "All implemented checks match.");
+    if (selected) {
+      setReason(selected.suggested_rejection_reason ?? "All implemented checks match.");
+      setOverrideNote("");
+    }
   }, [selected]);
 
   async function decide(decision: "Approved" | "Rejected") {
-    if (!selected) return;
+    if (!selected || !reason.trim()) return;
+    setBusy(true);
+    const unresolved = selected.findings.some((finding) => finding.result !== "Match");
     const response = await fetch(
       `/api/reviews/${selected.submission_id}/${selected.application_id}/decision`,
       {
@@ -70,13 +103,15 @@ function App() {
         body: JSON.stringify({
           decision,
           public_reason: reason,
-          officer_name: "Demo Compliance Officer"
+          officer_name: "Compliance Officer 014",
+          override_note: decision === "Approved" && unresolved ? overrideNote : null
         })
       }
     );
-    setMessage(response.ok ? `${decision} decision recorded.` : await response.text());
-    setSelected(null);
+    setMessage(response.ok ? `${decision} decision recorded.` : await responseMessage(response));
+    if (response.ok) setSelected(null);
     await refresh();
+    setBusy(false);
   }
 
   if (!loggedIn) {
@@ -85,12 +120,14 @@ function App() {
         <section className="login-card">
           <p className="kicker">Compliance Officer Portal</p>
           <h1>Evidence first.<br />Judgment stays human.</h1>
-          <p>Demo identity: Compliance Officer 014</p>
+          <p>Demonstration only. The login is not an authorization boundary.</p>
           <button onClick={() => setLoggedIn(true)}>Open review queue</button>
         </section>
       </main>
     );
   }
+
+  const unresolved = selected?.findings.some((finding) => finding.result !== "Match") ?? false;
 
   return (
     <main>
@@ -98,11 +135,26 @@ function App() {
         <p className="kicker">Review Queue</p>
         <h1>{queue.length.toString().padStart(2, "0")}</h1>
         <p>applications ready</p>
-        <button className="process" onClick={() => void processSampleIntake()}>
-          Process Sample Intake
+        <button
+          className="process"
+          disabled={busy}
+          onClick={() => void runAction("/api/demo/process-sample-intake", (result) =>
+            result.packages_imported
+              ? `Analyzed ${result.applications_preprocessed} applications in ${result.packages_imported} package.`
+              : "Sample intake was already processed; no artifacts were overwritten."
+          )}
+        >
+          {busy ? "Working…" : "Process Sample Intake"}
         </button>
-        <button className="refresh" onClick={() => void refresh()}>Refresh queue</button>
-        <nav>
+        <button className="refresh" disabled={busy} onClick={() => void refresh()}>Refresh queue</button>
+        <button
+          className="reset"
+          disabled={busy}
+          onClick={() => void runAction("/api/demo/reset", () => "Demo data reset. Select Process Sample Intake to begin again.")}
+        >
+          Reset Demo Data
+        </button>
+        <nav aria-label="Applications ready for review">
           {queue.map((item) => (
             <button
               className={selected?.application_id === item.application_id ? "active" : ""}
@@ -110,7 +162,7 @@ function App() {
               onClick={() => setSelected(item)}
             >
               <span>{item.application_id}</span>
-              <small>{item.source_label}</small>
+              <small>{item.processing_error ? "Needs attention" : item.source_label}</small>
             </button>
           ))}
         </nav>
@@ -124,8 +176,7 @@ function App() {
           <p>Officer: <strong>Compliance Officer 014</strong></p>
         </header>
         <p className="boundary">
-          Standalone procurement POC. Synthetic label-review fields only; no COLA connection
-          and no PII enters this application.
+          Standalone procurement POC. Publication-safe samples only; no COLAs Online connection and no applicant PII.
         </p>
         {!selected && <div className="empty">No unreviewed applications are waiting.</div>}
         {selected && (
@@ -134,6 +185,19 @@ function App() {
               <span>Source: <strong>{selected.source_label}</strong></span>
               <span>Analysis: <strong>{selected.processing_duration_ms} ms</strong></span>
             </div>
+            <section className="evidence-gallery" aria-label="Label images">
+              {selected.images.map((image) => (
+                <figure key={image.filename}>
+                  <img src={image.url} alt={`Submitted label ${image.filename}`} />
+                  <figcaption>
+                    <strong>{image.filename}</strong>
+                    <span>{image.engine} · {Math.round(image.confidence * 100)}% confidence</span>
+                    {image.quality_flags.map((flag) => <span className="quality" key={flag}>{flag}</span>)}
+                    <details><summary>Extracted text</summary><pre>{image.extracted_text}</pre></details>
+                  </figcaption>
+                </figure>
+              ))}
+            </section>
             <div className="findings">
               {selected.findings.map((finding) => (
                 <article key={finding.rule_id}>
@@ -146,6 +210,7 @@ function App() {
                   <dl>
                     <dt>Expected</dt><dd>{finding.expected}</dd>
                     <dt>Evidence</dt><dd>{finding.observed ?? "Not found"}</dd>
+                    <dt>Confidence</dt><dd>{Math.round(finding.confidence * 100)}%</dd>
                     <dt>Basis</dt><dd>{finding.source}</dd>
                   </dl>
                   <p>{finding.explanation}</p>
@@ -155,16 +220,22 @@ function App() {
             <section className="decision">
               <label>
                 Public decision reason
-                <textarea value={reason} onChange={(event) => setReason(event.target.value)} />
+                <textarea required value={reason} onChange={(event) => setReason(event.target.value)} />
               </label>
+              {unresolved && (
+                <label>
+                  Override note required only when approving unresolved findings
+                  <textarea value={overrideNote} onChange={(event) => setOverrideNote(event.target.value)} />
+                </label>
+              )}
               <div>
-                <button className="reject" onClick={() => void decide("Rejected")}>Reject</button>
-                <button className="approve" onClick={() => void decide("Approved")}>Approve</button>
+                <button disabled={busy || !reason.trim()} className="reject" onClick={() => void decide("Rejected")}>Reject</button>
+                <button disabled={busy || !reason.trim() || (unresolved && !overrideNote.trim())} className="approve" onClick={() => void decide("Approved")}>Approve</button>
               </div>
             </section>
           </>
         )}
-        {message && <p className="message">{message}</p>}
+        {message && <p className="message" role="status">{message}</p>}
       </section>
     </main>
   );
