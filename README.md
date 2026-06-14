@@ -49,14 +49,17 @@ current browser with JavaScript enabled.
 
 ## Verification Scope
 
-The prototype supports distilled spirits, wine, and malt beverages through
-beverage-specific rule profiles.
+The assignment's TTB references were reviewed to understand the broader
+regulatory context. This POC intentionally implements the representative
+checks named in the assignment and emphasized in the stakeholder interviews;
+it does not claim comprehensive distilled-spirits, wine, or malt-beverage
+compliance.
 
 | Check | Behavior |
 | --- | --- |
 | Brand name | Compare submitted value with extracted evidence using normalized case, spacing, and ordinary punctuation |
 | Class/type designation | Compare submitted value with extracted evidence |
-| Alcohol content and proof | Compare normalized submitted and extracted values when required |
+| Alcohol content and proof | Compare normalized submitted and extracted values when supplied |
 | Net contents | Compare normalized submitted and extracted values |
 | Producer/bottler name and address | Compare submitted value with extracted evidence |
 | Country of origin | Compare when supplied and applicable |
@@ -72,7 +75,7 @@ Each check returns `Match`, `Mismatch`, `Needs Human Review`, or
 - Python/FastAPI API
 - OpenCV image preparation and quality signals
 - PaddleOCR local text detection and recognition
-- Deterministic field comparison and versioned regulatory rules
+- Deterministic field comparison and versioned selected TTB checks
 - Separate immutable submission, analysis, and decision artifacts
 - One FastAPI process serving the API and built React application
 - Local runtime processing using packaged OCR models and application assets
@@ -87,7 +90,10 @@ Each check returns `Match`, `Mismatch`, `Needs Human Review`, or
 
 ## Regulatory Sources
 
-Rules are versioned and cite the applicable source in each review result.
+These sources were reviewed to understand the complete regulatory landscape
+and select a defensible POC subset. Each implemented TTB-backed check cites its
+applicable source and version. Rules outside the stated verification scope are
+not evaluated by this prototype.
 
 - [TTB distilled-spirits labeling](https://www.ttb.gov/regulated-commodities/beverage-alcohol/distilled-spirits/labeling)
 - [TTB wine labeling](https://www.ttb.gov/regulated-commodities/beverage-alcohol/wine/labeling)

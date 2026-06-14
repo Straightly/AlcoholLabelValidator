@@ -22,12 +22,16 @@
 
 ## Verification
 
+- TTB guidance was reviewed for context, but the POC implements only the
+  assignment's representative field comparisons and health-warning checks.
+- Beverage category is retained as application context; it does not select a
+  comprehensive beverage-specific compliance profile.
 - Case, spacing, and ordinary punctuation may be normalized for descriptive
   field comparisons.
 - Government-warning wording, capitalization, and punctuation are checked
   strictly.
-- Conditional rules return `Not Evaluated` when applicability cannot be
-  established from supplied facts.
+- Conditional disclosures, subtype-specific rules, formulation-dependent
+  requirements, and definitive physical measurements are outside the POC.
 - Unreadable or uncertain evidence returns `Needs Human Review`.
 - Physical dimensions cannot be established definitively from an uncalibrated
   image.
