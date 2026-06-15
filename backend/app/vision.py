@@ -51,23 +51,54 @@ class LocalVisionEngine:
             except Exception as exc:
                 if mode == "paddle":
                     self.detail = f"PaddleOCR unavailable: {exc}"
+                    self.ready = False
+                    return
+
+        if mode in {"auto", "tesseract"}:
+            try:
+                import pytesseract
+
+                pytesseract.get_tesseract_version()
+                self.engine_name = "Tesseract"
+                self.ready = True
+                self.detail = "Local Tesseract OCR engine loaded."
+                return
+            except Exception as exc:
+                if mode == "tesseract":
+                    self.engine_name = "unavailable"
+                    self.ready = False
+                    self.detail = f"Tesseract unavailable: {exc}"
+                    return
 
         # Committed fixtures carry OCR sidecars so reviewers can exercise the
         # complete workflow without network/model installation.
         self.engine_name = "fixture-sidecar"
         self.ready = True
-        self.detail = "Fixture sidecars enabled; real images require PaddleOCR."
+        self.detail = "Fixture sidecars enabled; real images require PaddleOCR/Tesseract."
 
     def analyze(self, image_path: Path) -> VisionResult:
         metrics = self._quality_metrics(image_path)
         sidecar = image_path.with_suffix(image_path.suffix + ".ocr.txt")
-        if sidecar.exists() and self._ocr is None:
+        if sidecar.exists() and self.engine_name == "fixture-sidecar":
             return VisionResult(
                 text=sidecar.read_text(encoding="utf-8").strip(),
                 confidence=0.99,
                 engine="fixture-sidecar",
                 **metrics,
             )
+        if self.engine_name == "Tesseract":
+            try:
+                import pytesseract
+
+                text = pytesseract.image_to_string(str(image_path)).strip()
+                return VisionResult(
+                    text=text,
+                    confidence=0.85,
+                    engine="Tesseract",
+                    **metrics,
+                )
+            except Exception as exc:
+                raise RuntimeError(f"Tesseract OCR failed: {exc}")
         if self._ocr is None:
             raise RuntimeError(
                 "No OCR model is available for this image. Run scripts/prepare_models.py "
