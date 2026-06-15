@@ -135,7 +135,7 @@ def test_process_sample_intake_is_idempotent(tmp_path: Path) -> None:
         queue = client.get("/api/review-queue").json()
         assert len(queue) == 2
         attention = next(item for item in queue if "attention" in item["application_id"])
-        assert any(item["result"] == "Mismatch" for item in attention["findings"])
+        assert any(item["result"] == "Missing" for item in attention["findings"])
 
         second = client.post("/api/demo/process-sample-intake")
         assert second.status_code == 202
@@ -184,10 +184,16 @@ def test_process_sample_intake_imports_all_top_level_packages(tmp_path: Path) ->
         "crown-royal-reserve-back.jpg",
         "glenlivet-good-front.jpg",
         "glenlivet-good-back.jpg",
-        "glenlivet-bad-front.jpg",
+        "glenlivet-bad-front1.jpg",
+        "glenlivet-bad-front2.jpg",
+        "glenlivet-bad-back1.jpg",
         "red-blend-portugal-good-front.jpg",
         "red-blend-portugal-good-back.jpg",
         "red-blend-portugal-skewed-back.jpg",
+        "sample-compliant-front.png",
+        "sample-compliant-back.png",
+        "sample-compliant-front.png.ocr.txt",
+        "sample-compliant-back.png.ocr.txt",
     ):
         shutil.copy2(source / name, fixture_dir / name)
 
@@ -197,8 +203,9 @@ def test_process_sample_intake_imports_all_top_level_packages(tmp_path: Path) ->
         assert completed["packages_found"] == 2
         assert completed["packages_imported"] == 2
         assert completed["packages_skipped"] == 0
-        assert completed["applications_preprocessed"] == 6
-        assert len(client.get("/api/review-queue").json()) == 6
+        assert completed["applications_preprocessed"] == 8
+        assert len(client.get("/api/review-queue").json()) == 8
+
 
 
 def test_approval_requires_override_for_unresolved_findings(tmp_path: Path) -> None:
@@ -285,4 +292,27 @@ def test_partial_warning_text_fails() -> None:
         "GOVERNMENT WARNING: (1) ACCORDING TO THE SURGEON GENERAL",
         0.99,
     )
-    assert finding.result == "Mismatch"
+    assert finding.result == "Missing"
+
+
+def test_rate_limiting_middleware(tmp_path: Path) -> None:
+    fixture_dir = isolated_fixture_dir(tmp_path)
+    app = create_app(tmp_path, fixture_dir)
+    with TestClient(app) as client:
+        responses = [client.get("/api/health") for _ in range(130)]
+        status_codes = [r.status_code for r in responses]
+        assert 200 in status_codes
+        assert 429 in status_codes
+
+
+def test_payload_size_limit(tmp_path: Path) -> None:
+    fixture_dir = isolated_fixture_dir(tmp_path)
+    app = create_app(tmp_path, fixture_dir)
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/submissions",
+            headers={"content-length": str(30 * 1024 * 1024)},
+            content=b"x" * 100,
+        )
+        assert response.status_code == 413
+

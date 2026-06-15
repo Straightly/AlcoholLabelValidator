@@ -45,8 +45,9 @@ article { padding: 1.25rem; background: #fff; border: 1px solid #111827; box-sha
 h3 { margin: 0; text-transform: capitalize; }
 .result { font-weight: 600; padding: 0.25rem 0.5rem; border: 1px solid currentColor; }
 .result.match { color: #18634b; background: #dff5e9; }
-.result.mismatch { color: #9f1d20; background: #ffe3dd; }
-.result.needs-human-review { color: #734b00; background: #fff0bd; }
+.result.likely-match { color: #256037; background: #ebfaef; border: 1px dashed #256037; }
+.result.likely-missing { color: #7c4b00; background: #fff4d0; border: 1px dashed #7c4b00; }
+.result.missing { color: #9f1d20; background: #ffe3dd; }
 .result.not-evaluated { color: #4b5563; background: #edf0f3; }
 dl { display: grid; grid-template-columns: 85px 1fr; gap: 0.4rem; font-size: 0.86rem; }
 dt { font-weight: 600; }
@@ -69,4 +70,74 @@ textarea { min-height: 100px; padding: 0.8rem; resize: vertical; }
   aside { min-height: auto; }
   .findings, .evidence-gallery { grid-template-columns: 1fr; }
   header, .context { align-items: flex-start; flex-direction: column; }
+}
+
+@media print {
+  /* Hide the sidebar navigation, control buttons, and checkboxes */
+  aside,
+  .refresh,
+  .reset,
+  .process,
+  .context label,
+  .findings label,
+  .decision button,
+  .boundary {
+    display: none !important;
+  }
+
+  /* Reset main layout */
+  main {
+    display: block !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  /* Reset workspace padding and grid background */
+  .workspace {
+    padding: 0 !important;
+    background: none !important;
+  }
+
+  /* Make header look clean */
+  header {
+    background: none !important;
+    border-bottom: 2px solid #000 !important;
+    padding-bottom: 1rem !important;
+  }
+
+  /* Avoid page breaks in figures and articles */
+  figure, article {
+    page-break-inside: avoid;
+    break-inside: avoid;
+    box-shadow: none !important;
+    border: 1px solid #000 !important;
+  }
+
+  /* Convert grids to block to print nicely vertically */
+  .evidence-gallery,
+  .findings {
+    display: block !important;
+  }
+
+  figure {
+    margin-bottom: 1.5rem !important;
+  }
+
+  article {
+    margin-bottom: 1.5rem !important;
+  }
+
+  /* Force details to be printed if open, ensure text wrap */
+  details pre {
+    white-space: pre-wrap !important;
+    word-break: break-all !important;
+  }
+
+  /* Reset decision box colors for print readability */
+  .decision {
+    background: #f9f9f9 !important;
+    border: 2px solid #000 !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
 }

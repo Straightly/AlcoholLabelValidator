@@ -47,6 +47,10 @@
 - The demonstration uses one FastAPI process serving both the API and the built
   React application.
 - Sample-intake imports are analyzed in a background job before officer review.
+- With better hardware, the local engine can utilize larger, more accurate server-grade models.
+- If the budget allows, the system can transition to high-accuracy commercial cloud OCR APIs (e.g., Microsoft Azure Read API) or Multimodal LLM APIs.
+- To balance cost and performance, cloud/LLM models can be queried selectively as fallbacks (i.e., routing requests to the expensive model only when the local/offline model fails to match or returns low confidence).
+
 
 ## Production Boundary
 

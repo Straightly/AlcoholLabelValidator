@@ -21,9 +21,11 @@ class SubmissionType(StrEnum):
 
 class CheckResult(StrEnum):
     MATCH = "Match"
-    MISMATCH = "Mismatch"
-    NEEDS_HUMAN_REVIEW = "Needs Human Review"
+    LIKELY_MATCH = "Likely Match"
+    LIKELY_MISSING = "Likely Missing"
+    MISSING = "Missing"
     NOT_EVALUATED = "Not Evaluated"
+
 
 
 class DecisionType(StrEnum):

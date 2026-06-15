@@ -88,6 +88,10 @@ function App() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [intakeStatus, setIntakeStatus] = useState<IntakeStatus | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({});
+  const [showOnlyMissing, setShowOnlyMissing] = useState(true);
+
 
   async function refresh() {
     const response = await fetch("/api/review-queue");
@@ -174,6 +178,7 @@ function App() {
     if (selected) {
       setReason(selected.suggested_rejection_reason ?? "All implemented checks match.");
       setOverrideNote("");
+      setOverrides({});
     }
   }, [selected]);
 
@@ -218,6 +223,9 @@ function App() {
   }
 
   const unresolved = selected?.findings.some((finding) => finding.result !== "Match") ?? false;
+  const allUnresolvedOverridden = selected
+    ? selected.findings.filter((f) => f.result !== "Match").every((f) => overrides[f.rule_id])
+    : false;
 
   return (
     <main>
@@ -314,6 +322,24 @@ function App() {
             <div className="context">
               <span>Source: <strong>{selected.source_label}</strong></span>
               <span>Analysis: <strong>{selected.processing_duration_ms} ms</strong></span>
+              <div style={{ display: "flex", gap: "1.5rem", alignItems: "center" }}>
+                <label style={{ display: "flex", gap: "0.5rem", alignItems: "center", cursor: "pointer", margin: 0, fontWeight: "600" }}>
+                  <input
+                    type="checkbox"
+                    checked={showOnlyMissing}
+                    onChange={(e) => setShowOnlyMissing(e.target.checked)}
+                  />
+                  Show Only Missing Fields
+                </label>
+                <label style={{ display: "flex", gap: "0.5rem", alignItems: "center", cursor: "pointer", margin: 0, fontWeight: "600" }}>
+                  <input
+                    type="checkbox"
+                    checked={showDetails}
+                    onChange={(e) => setShowDetails(e.target.checked)}
+                  />
+                  Show Technical Details
+                </label>
+              </div>
             </div>
             <section className="evidence-gallery" aria-label="Label images">
               {selected.images.map((image) => (
@@ -321,31 +347,72 @@ function App() {
                   <img src={image.url} alt={`Submitted label ${image.filename}`} />
                   <figcaption>
                     <strong>{image.filename}</strong>
-                    <span>{image.engine} · {Math.round(image.confidence * 100)}% confidence</span>
+                    {showDetails && (
+                      <span>{image.engine} · {Math.round(image.confidence * 100)}% confidence</span>
+                    )}
                     {image.quality_flags.map((flag) => <span className="quality" key={flag}>{flag}</span>)}
-                    <details><summary>Extracted text</summary><pre>{image.extracted_text}</pre></details>
+                    {showDetails && (
+                      <details><summary>Extracted text</summary><pre>{image.extracted_text}</pre></details>
+                    )}
                   </figcaption>
                 </figure>
               ))}
             </section>
             <div className="findings">
-              {selected.findings.map((finding) => (
-                <article key={finding.rule_id}>
-                  <div className="finding-title">
-                    <h3>{finding.field_name.replaceAll("_", " ")}</h3>
-                    <span className={`result ${finding.result.toLowerCase().replaceAll(" ", "-")}`}>
-                      {finding.result}
-                    </span>
-                  </div>
-                  <dl>
-                    <dt>Expected</dt><dd>{finding.expected}</dd>
-                    <dt>Evidence</dt><dd>{finding.observed ?? "Not found"}</dd>
-                    <dt>Confidence</dt><dd>{Math.round(finding.confidence * 100)}%</dd>
-                    <dt>Basis</dt><dd>{finding.source}</dd>
-                  </dl>
-                  <p>{finding.explanation}</p>
-                </article>
-              ))}
+              {selected.findings.filter((finding) => !showOnlyMissing || finding.result !== "Match").length === 0 ? (
+                <div className="empty" style={{ gridColumn: "span 2", marginTop: 0 }}>
+                  <strong>All checked fields match perfectly.</strong>
+                  <p>There are no missing or unresolved findings to display.</p>
+                </div>
+              ) : (
+                selected.findings
+                  .filter((finding) => !showOnlyMissing || finding.result !== "Match")
+                  .map((finding) => (
+                    <article key={finding.rule_id}>
+                      <div className="finding-title">
+                        <h3>{finding.field_name.replaceAll("_", " ")}</h3>
+                        <span className={`result ${finding.result.toLowerCase().replaceAll(" ", "-")}`}>
+                          {finding.result}
+                        </span>
+                      </div>
+                      <dl>
+                        <dt>Expected</dt><dd>{finding.expected}</dd>
+                        <dt>Evidence</dt><dd>{finding.observed ?? "Not found"}</dd>
+                        {showDetails && (
+                          <>
+                            <dt>Confidence</dt><dd>{Math.round(finding.confidence * 100)}%</dd>
+                          </>
+                        )}
+                        <dt>Basis</dt><dd>{finding.source}</dd>
+                      </dl>
+                      <p>{finding.explanation}</p>
+                      {finding.result !== "Match" && (
+                        <label style={{ display: "flex", gap: "0.5rem", alignItems: "center", cursor: "pointer", marginTop: "1rem", fontWeight: "600" }}>
+                          <input
+                            type="checkbox"
+                            checked={!!overrides[finding.rule_id]}
+                            onChange={(e) => {
+                              const val = e.target.checked;
+                              const nextOverrides = { ...overrides, [finding.rule_id]: val };
+                              setOverrides(nextOverrides);
+                              
+                              const unresolvedFindings = selected.findings.filter((f) => f.result !== "Match");
+                              const allOverridden = unresolvedFindings.every((f) => nextOverrides[f.rule_id]);
+                              if (allOverridden) {
+                                setOverrideNote(`Manually verified and approved: ${unresolvedFindings.map((f) => f.field_name.replaceAll("_", " ")).join(", ")}.`);
+                                setReason("All implemented checks match or have been manually verified by the compliance officer.");
+                              } else {
+                                setOverrideNote("");
+                                setReason(selected.suggested_rejection_reason ?? "");
+                              }
+                            }}
+                          />
+                          Manually verify and override
+                        </label>
+                      )}
+                    </article>
+                  ))
+              )}
             </div>
             <section className="decision">
               <label>
@@ -360,7 +427,7 @@ function App() {
               )}
               <div>
                 <button disabled={busy || !reason.trim()} className="reject" onClick={() => void decide("Rejected")}>Reject</button>
-                <button disabled={busy || !reason.trim() || (unresolved && !overrideNote.trim())} className="approve" onClick={() => void decide("Approved")}>Approve</button>
+                <button disabled={busy || !reason.trim() || (unresolved && (!overrideNote.trim() || !allUnresolvedOverridden))} className="approve" onClick={() => void decide("Approved")}>Approve</button>
               </div>
             </section>
           </>

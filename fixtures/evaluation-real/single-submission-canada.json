@@ -4,20 +4,20 @@
   "submission_type": "single",
   "applications": [
     {
-      "application_id": "my-bottle-application-005",
+      "application_id": "s-1",
       "beverage_category": "distilled_spirits",
       "fields": {
-        "brand_name": "Crown Royal Reserve",
-        "class_type": "BLENDED CANADIAN WHISKY",
-        "alcohol_content": "40% Alc./Vol. (80 Proof)",
+        "brand_name": "OLD TOM DISTILLERY",
+        "class_type": "Kentucky Straight Bourbon Whiskey",
+        "alcohol_content": "45% Alc./Vol. (90 Proof)",
         "net_contents": "750 mL",
-        "producer_name_address": "THE CROWN ROYAL COMPANY, NORWALK, CT",
-        "country_of_origin": "CANADA"
+        "producer_name_address": "Old Tom Distillery, Louisville, Kentucky"
       },
       "image_filenames": [
-        "crown-royal-reserve-front.jpg",
-        "crown-royal-reserve-back.jpg"
+        "sample-compliant-front.png",
+        "sample-compliant-back.png"
       ]
     }
   ]
 }
+

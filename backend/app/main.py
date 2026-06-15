@@ -1,11 +1,13 @@
 import os
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from .analysis import analyze_application
 from .intake_jobs import IntakeJobRunner
@@ -14,6 +16,43 @@ from .store import ArtifactExistsError, ArtifactStore
 from .vision import LocalVisionEngine
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app, max_requests: int = 120, window_seconds: int = 60):
+        super().__init__(app)
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self.history: dict[str, list[float]] = {}
+
+    async def dispatch(self, request: Request, call_next):
+        if request.url.path.startswith("/api/"):
+            client_ip = request.client.host if request.client else "unknown"
+            now = time.time()
+            timestamps = self.history.get(client_ip, [])
+            timestamps = [t for t in timestamps if now - t < self.window_seconds]
+            if len(timestamps) >= self.max_requests:
+                return Response(
+                    content="Rate limit exceeded. Try again later.",
+                    status_code=429,
+                )
+            timestamps.append(now)
+            self.history[client_ip] = timestamps
+
+        if request.method in {"POST", "PUT"}:
+            content_length = request.headers.get("content-length")
+            if content_length:
+                try:
+                    size = int(content_length)
+                    if size > 20 * 1024 * 1024:  # 20 MB payload limit
+                        return Response(
+                            content="Payload too large. Max allowed is 20 MB.",
+                            status_code=413,
+                        )
+                except ValueError:
+                    pass
+
+        return await call_next(request)
 
 
 def create_app(
@@ -90,6 +129,7 @@ def create_app(
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.add_middleware(RateLimitMiddleware, max_requests=120, window_seconds=60)
 
     @app.get("/api/health")
     def health() -> dict[str, str]:

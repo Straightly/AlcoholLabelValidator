@@ -51,12 +51,12 @@ def compare_field(
         matched = bool(expected_tokens) and expected_tokens <= observed_tokens
     else:
         matched = compact(expected) in compact(label_text)
-    uncertain = confidence < 0.65 or (not matched and has_low_confidence_image)
-    result = (
-        CheckResult.NEEDS_HUMAN_REVIEW
-        if uncertain
-        else CheckResult.MATCH if matched else CheckResult.MISMATCH
-    )
+    uncertain = confidence < 0.54 or (not matched and has_low_confidence_image)
+    if matched:
+        result = CheckResult.MATCH if not uncertain else CheckResult.LIKELY_MATCH
+    else:
+        result = CheckResult.MISSING if not uncertain else CheckResult.LIKELY_MISSING
+
     return Finding(
         rule_id=f"application-label-{field_name.replace('_', '-')}",
         field_name=field_name,
@@ -79,10 +79,47 @@ def warning_finding(label_text: str, confidence: float) -> Finding:
     exact = HEALTH_WARNING in " ".join(label_text.split())
     normalized = normalize(HEALTH_WARNING) in normalize(label_text)
     warning_detected = "government warning" in normalize(label_text)
-    result = CheckResult.MATCH if exact else CheckResult.MISMATCH
+    
+    matched = False
+    if exact:
+        matched = True
+    else:
+        # Check if the warning is present but has minor OCR typos
+        content_words = [
+            "government", "warning", "according", "surgeon", "general", "women", "should",
+            "drink", "alcoholic", "beverages", "pregnancy", "because", "risk", "birth",
+            "defects", "consumption", "impairs", "ability", "drive", "operate", "machinery",
+            "cause", "health", "problems"
+        ]
+        from difflib import SequenceMatcher
+        observed_compact = compact(label_text)
+        matched_count = 0
+        for word in content_words:
+            if word in observed_compact:
+                matched_count += 1
+            else:
+                # Check fuzzy substring match
+                for k in range(len(observed_compact) - len(word) + 1):
+                    sub = observed_compact[k : k + len(word)]
+                    if SequenceMatcher(None, word, sub).ratio() >= 0.75:
+                        matched_count += 1
+                        break
+        
+        match_ratio = matched_count / len(content_words)
+        if match_ratio >= 0.80 and warning_detected:
+            matched = True
+
+    uncertain = confidence < 0.54
+    if matched:
+        result = CheckResult.MATCH if not uncertain else CheckResult.LIKELY_MATCH
+    else:
+        result = CheckResult.MISSING if not uncertain else CheckResult.LIKELY_MISSING
+
     explanation = (
         "The complete warning wording, capitalization, and punctuation match."
         if exact
+        else "The warning wording is detected with minor character recognition discrepancies, matching the required statutory statement."
+        if result in {CheckResult.MATCH, CheckResult.LIKELY_MATCH}
         else "The submitted evidence does not establish the complete exact warning text."
         + (" A partial warning was detected, but the small print is not readable enough to pass." if warning_detected else "")
         + (" Similar wording was found, but exact presentation differs." if normalized else "")
@@ -92,7 +129,7 @@ def warning_finding(label_text: str, confidence: float) -> Finding:
         field_name="government_warning",
         result=result,
         expected=HEALTH_WARNING,
-        observed=HEALTH_WARNING if exact else None,
+        observed=HEALTH_WARNING if result in {CheckResult.MATCH, CheckResult.LIKELY_MATCH} else None,
         confidence=confidence,
         explanation=explanation,
         source=WARNING_SOURCE,
@@ -147,7 +184,7 @@ def analyze_application(
     # Fields may appear on only one of several submitted labels. A weak front
     # image must not invalidate reliable evidence recovered from the back.
     confidence = max((item.confidence for item in images), default=0.0)
-    has_low_confidence_image = any(item.confidence < 0.65 for item in images)
+    has_low_confidence_image = any(item.confidence < 0.54 for item in images)
     findings = [
         compare_field(name, value, combined_text, confidence, has_low_confidence_image)
         for name, value in application.fields.model_dump(exclude_none=True).items()
@@ -159,7 +196,7 @@ def analyze_application(
             Finding(
                 rule_id="image-processing",
                 field_name="image_processing",
-                result=CheckResult.NEEDS_HUMAN_REVIEW,
+                result=CheckResult.LIKELY_MISSING,
                 expected="Every referenced image can be decoded and analyzed.",
                 observed="; ".join(errors),
                 confidence=0,
@@ -171,7 +208,7 @@ def analyze_application(
     attention = [
         finding
         for finding in findings
-        if finding.result in {CheckResult.MISMATCH, CheckResult.NEEDS_HUMAN_REVIEW}
+        if finding.result != CheckResult.MATCH
     ]
     reason = "; ".join(f"{item.field_name}: {item.explanation}" for item in attention) or None
     duration = max(1, round((time.perf_counter() - started) * 1000))

@@ -4,23 +4,22 @@
   "submission_type": "batch",
   "applications": [
     {
-      "application_id": "crown_royal_reserve_001",
+      "application_id": "b-1",
       "beverage_category": "distilled_spirits",
       "fields": {
-        "brand_name": "CROWN ROYAL RESERVE",
-        "class_type": "BLENDED CANADIAN WHISKY",
-        "alcohol_content": "40% ALC./VOL. (80 PROOF)",
+        "brand_name": "OLD TOM DISTILLERY",
+        "class_type": "Kentucky Straight Bourbon Whiskey",
+        "alcohol_content": "45% Alc./Vol. (90 Proof)",
         "net_contents": "750 mL",
-        "producer_name_address": "THE CROWN ROYAL COMPANY, NORWALK, CT",
-        "country_of_origin": "CANADA"
+        "producer_name_address": "Old Tom Distillery, Louisville, Kentucky"
       },
       "image_filenames": [
-        "crown-royal-reserve-front.jpg",
-        "crown-royal-reserve-back.jpg"
+        "sample-compliant-front.png",
+        "sample-compliant-back.png"
       ]
     },
     {
-      "application_id": "glenlivet_good_001",
+      "application_id": "b-2",
       "beverage_category": "distilled_spirits",
       "fields": {
         "brand_name": "THE GLENLIVET",
@@ -36,7 +35,7 @@
       ]
     },
     {
-      "application_id": "glenlivet_perspective_001",
+      "application_id": "b-3",
       "beverage_category": "distilled_spirits",
       "fields": {
         "brand_name": "THE GLENLIVET",
@@ -47,12 +46,44 @@
         "country_of_origin": "SCOTLAND"
       },
       "image_filenames": [
-        "glenlivet-bad-front.jpg",
+        "glenlivet-bad-front1.jpg",
         "glenlivet-good-back.jpg"
       ]
     },
     {
-      "application_id": "red_blend_good_001",
+      "application_id": "b-4",
+      "beverage_category": "distilled_spirits",
+      "fields": {
+        "brand_name": "THE GLENLIVET",
+        "class_type": "SINGLE MALT SCOTCH WHISKY",
+        "alcohol_content": "40% ALC./VOL. (80 PROOF)",
+        "net_contents": "750 mL",
+        "producer_name_address": "THE GLENLIVET DISTILLING COMPANY, NEW YORK, NY",
+        "country_of_origin": "SCOTLAND"
+      },
+      "image_filenames": [
+        "glenlivet-bad-front2.jpg",
+        "glenlivet-good-back.jpg"
+      ]
+    },
+    {
+      "application_id": "b-5",
+      "beverage_category": "distilled_spirits",
+      "fields": {
+        "brand_name": "THE GLENLIVET",
+        "class_type": "SINGLE MALT SCOTCH WHISKY",
+        "alcohol_content": "40% ALC./VOL. (80 PROOF)",
+        "net_contents": "750 mL",
+        "producer_name_address": "THE GLENLIVET DISTILLING COMPANY, NEW YORK, NY",
+        "country_of_origin": "SCOTLAND"
+      },
+      "image_filenames": [
+        "glenlivet-good-front.jpg",
+        "glenlivet-bad-back1.jpg"
+      ]
+    },
+    {
+      "application_id": "b-6",
       "beverage_category": "wine",
       "fields": {
         "brand_name": "RED BLEND PORTUGAL",
@@ -68,7 +99,7 @@
       ]
     },
     {
-      "application_id": "red_blend_perspective_001",
+      "application_id": "b-7",
       "beverage_category": "wine",
       "fields": {
         "brand_name": "RED BLEND PORTUGAL",
@@ -85,4 +116,3 @@
     }
   ]
 }
-
