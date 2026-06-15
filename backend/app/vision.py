@@ -70,6 +70,26 @@ class LocalVisionEngine:
                     self.detail = f"Tesseract unavailable: {exc}"
                     return
 
+        if mode == "ollama":
+            ollama_host = os.getenv("ALV_OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+            model_name = os.getenv("ALV_OLLAMA_MODEL", "moondream")
+            try:
+                import urllib.request
+
+                # Check connectivity by hitting the tags endpoint
+                req = urllib.request.Request(f"{ollama_host}/api/tags")
+                with urllib.request.urlopen(req, timeout=3.0) as response:
+                    if response.status == 200:
+                        self.engine_name = "Ollama"
+                        self.ready = True
+                        self.detail = f"Local Ollama engine loaded (Model: {model_name})."
+                        return
+            except Exception as exc:
+                self.engine_name = "unavailable"
+                self.ready = False
+                self.detail = f"Ollama engine unavailable at {ollama_host}: {exc}"
+                return
+
         # Committed fixtures carry OCR sidecars so reviewers can exercise the
         # complete workflow without network/model installation.
         self.engine_name = "fixture-sidecar"
@@ -99,6 +119,45 @@ class LocalVisionEngine:
                 )
             except Exception as exc:
                 raise RuntimeError(f"Tesseract OCR failed: {exc}")
+        if self.engine_name == "Ollama":
+            try:
+                import base64
+                import json
+                import urllib.request
+
+                with open(image_path, "rb") as img_file:
+                    base64_image = base64.b64encode(img_file.read()).decode("utf-8")
+
+                ollama_host = os.getenv("ALV_OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+                model_name = os.getenv("ALV_OLLAMA_MODEL", "moondream")
+
+                payload = {
+                    "model": model_name,
+                    "prompt": "Transcribe all readable text on this alcohol label verbatim.",
+                    "images": [base64_image],
+                    "stream": False,
+                }
+                data = json.dumps(payload).encode("utf-8")
+
+                req = urllib.request.Request(
+                    f"{ollama_host}/api/generate",
+                    data=data,
+                    headers={"Content-Type": "application/json"},
+                    method="POST",
+                )
+
+                with urllib.request.urlopen(req, timeout=120.0) as response:
+                    res_body = json.loads(response.read().decode("utf-8"))
+                    text = res_body.get("response", "").strip()
+
+                return VisionResult(
+                    text=text,
+                    confidence=0.95,
+                    engine=f"Ollama ({model_name})",
+                    **metrics,
+                )
+            except Exception as exc:
+                raise RuntimeError(f"Ollama VLM failed: {exc}")
         if self._ocr is None:
             raise RuntimeError(
                 "No OCR model is available for this image. Run scripts/prepare_models.py "
