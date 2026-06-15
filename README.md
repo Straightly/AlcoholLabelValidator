@@ -4,8 +4,9 @@ Standalone prototype for assisting TTB compliance officers with alcohol-label
 application review.
 
 ```text
-Sample intake -> local image analysis -> field and warning checks
-              -> officer review -> officer decision
+Sample intake trigger -> background local image analysis
+                      -> field and warning checks
+                      -> officer review -> officer decision
 ```
 
 ## Test The Deployed Application
@@ -15,29 +16,29 @@ current browser with JavaScript enabled.
 
 1. Open the application and select `Open review queue`.
 2. Select `Process Sample Intake`.
-3. Confirm that the seeded applications appear in the queue.
-4. Open the compliant samples and confirm that the expected fields and
+3. Confirm that background preprocessing starts and status is shown.
+4. Wait for preprocessing to finish, then confirm that the seeded applications appear in the queue.
+5. Open the compliant samples and confirm that the expected fields and
    government warning are marked `Match`.
-5. Open the attention-required samples and confirm that the seeded mismatches
+6. Open the attention-required samples and confirm that the seeded mismatches
    are clearly identified.
-6. Confirm that submitted values, label images, extracted evidence, confidence,
+7. Confirm that submitted values, label images, extracted evidence, confidence,
    explanations, and rule sources are visible together.
-7. Confirm that low-confidence or unreadable evidence is marked
-   `Needs Human Review`, not silently accepted or rejected.
-8. Confirm that each ordinary one- or two-image application reports an
-   end-to-end analysis time below five seconds.
-9. Edit the suggested decision reason and record an approval or rejection.
-10. Confirm that the decided application leaves the active queue.
-11. Select `Process Sample Intake` again and confirm that existing artifacts are
+8. Confirm that low-confidence or unreadable non-warning evidence is marked
+   `Needs Human Review`, not silently accepted or silently passed.
+9. Confirm that incomplete statutory warning evidence fails rather than passing on a partial match.
+10. Edit the suggested decision reason and record an approval or rejection.
+11. Confirm that the decided application leaves the active queue.
+12. Select `Process Sample Intake` again and confirm that existing artifacts are
     not overwritten.
-12. Select `Reset Demo Data` to restore the original samples.
+13. Select `Reset Demo Data` to restore the original samples.
 
 ## Requirement Verification
 
 | Requirement | How to verify |
 | --- | --- |
 | Routine field matching | Compare each submitted value with the extracted label evidence shown beside it |
-| Government warning | Verify complete wording, capitalization, and punctuation results; inspect presentation evidence when human review is required |
+| Government warning | Verify that only the complete wording, capitalization, and punctuation pass; partial or unreadable warning text fails |
 | Human judgment | Review `Needs Human Review` results and confirm the officer makes the final decision |
 | Five-second response | Check the displayed end-to-end analysis duration for each ordinary application |
 | Batch handling | Run the 300-application batch test described below |
@@ -63,7 +64,7 @@ compliance.
 | Net contents | Compare normalized submitted and extracted values |
 | Producer/bottler name and address | Compare submitted value with extracted evidence |
 | Country of origin | Compare when supplied and applicable |
-| Government warning | Check the prescribed wording, capitalization, and punctuation |
+| Government warning | Check the prescribed wording, capitalization, and punctuation; partial recovery fails |
 | Warning presentation | Show the source image and quality evidence for officer inspection; physical measurements require calibrated evidence |
 
 Each check returns `Match`, `Mismatch`, `Needs Human Review`, or
@@ -78,6 +79,7 @@ Each check returns `Match`, `Mismatch`, `Needs Human Review`, or
 - Deterministic field comparison and versioned selected TTB checks
 - Separate immutable submission, analysis, and decision artifacts
 - One FastAPI process serving the API and built React application
+- Background preprocessing for sample-intake imports so officers review completed analysis artifacts
 - Local runtime processing using prepared OCR models and application assets
 
 ## Tools
@@ -263,7 +265,6 @@ Open `http://127.0.0.1:8000/`. Press `Ctrl+C` to stop the application.
 | `ALV_PORT` | `8000` | HTTP port |
 | `ALV_DATA_DIR` | `./data` | Runtime artifact directory |
 | `ALV_FIXTURE_DIR` | `./fixtures/intake` | Sample intake directory |
-| `ALV_OCR_MAX_SIDE` | `1200` | Maximum image dimension supplied to local OCR |
 
 ## Add Your Own Bottle Photographs
 
@@ -288,10 +289,11 @@ Then:
 1. Start the application with `ALV_OCR_ENGINE=paddle`.
 2. Select `Reset Demo Data`.
 3. Select `Process Sample Intake`.
-4. Open the new applications in the review queue.
+4. Wait for the background preprocessing status to complete.
+5. Open the new applications in the review queue.
 
-The `user` folder is scanned automatically. Filled manifests and photographs
-there are ignored by Git because it is a private staging area.
+The `user` folder is scanned when sample preprocessing runs. Filled manifests
+and photographs there are ignored by Git because it is a private staging area.
 
 Final, reviewed retail-label fixtures belong in:
 
@@ -312,24 +314,24 @@ Start with the seeded demo state.
 2. Select `Open review queue`.
 3. Confirm the queue initially contains no unreviewed applications.
 4. Select `Process Sample Intake`.
-5. Confirm that the seeded packages and applications are processed.
-6. Confirm that the queue contains the expected applications.
-7. Open each compliant sample and confirm that all expected checks are `Match`.
-8. Open each attention-required sample and confirm that the seeded field,
+5. Confirm that the background preprocessing status enters `running`.
+6. Confirm that the seeded packages and applications are processed.
+7. Confirm that the queue contains the expected applications.
+8. Open each compliant sample and confirm that all expected checks are `Match`.
+9. Open each attention-required sample and confirm that the seeded field,
    warning, or image-quality issue is identified.
-9. Confirm that submitted images, expected values, extracted evidence,
+10. Confirm that submitted images, expected values, extracted evidence,
    confidence, explanations, and rule sources are visible.
-10. Confirm that skewed, rotated, curved, or unevenly lit readable labels are
+11. Confirm that skewed, rotated, curved, or unevenly lit readable labels are
     processed and that unreadable evidence returns `Needs Human Review`.
-11. Confirm that ordinary one- and two-image applications report an end-to-end
-    server-side analysis duration below five seconds.
-12. Confirm that a rejection reason is prefilled from mismatches and remains
+12. Confirm that warning evidence passes only when the complete exact statutory text is established from the submitted images.
+13. Confirm that a rejection reason is prefilled from mismatches and remains
     editable.
-13. Record an approval or rejection.
-14. Confirm that the decided application leaves the active queue.
-15. Select `Process Sample Intake` again and confirm that existing artifacts are
+14. Record an approval or rejection.
+15. Confirm that the decided application leaves the active queue.
+16. Select `Process Sample Intake` again and confirm that existing artifacts are
     not overwritten.
-16. Select `Reset Demo Data` and confirm that the original seeded state returns.
+17. Select `Reset Demo Data` and confirm that the original seeded state returns.
 
 ## Batch Test
 
@@ -366,7 +368,7 @@ The automated suite verifies:
 | Duplicate package or decision | Return a conflict and preserve the first artifact |
 | Missing, duplicate, or unreferenced image | Reject the affected input with a clear error |
 | Unsupported, empty, corrupt, or oversized image | Reject the affected input with a clear error |
-| Unreadable or low-confidence evidence | Return `Needs Human Review` rather than `Match` |
+| Unreadable or low-confidence non-warning evidence | Return `Needs Human Review` rather than `Match` |
 | One failed application in a batch | Preserve completed results for other applications and report the failed application |
 | Unexpected processing failure | Publish a terminal error result and prevent repeated automatic selection |
 
@@ -415,8 +417,7 @@ The report includes:
 - Government-warning result accuracy
 - `Needs Human Review` behavior for unreadable evidence
 - Median, p95, and slowest end-to-end latency
-- A failure result when any ordinary one- or two-image application exceeds five
-  seconds
+- Background preprocessing timing information for operational planning
 
 ## Health And Readiness
 

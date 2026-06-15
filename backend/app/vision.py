@@ -40,7 +40,6 @@ class LocalVisionEngine:
                     use_doc_orientation_classify=False,
                     use_doc_unwarping=False,
                     use_textline_orientation=False,
-                    text_det_limit_side_len=960,
                 )
                 self.engine_name = "PaddleOCR"
                 self.ready = True
@@ -72,25 +71,7 @@ class LocalVisionEngine:
                 "or use the committed demonstration fixtures."
             )
 
-        ocr_input: Any = str(image_path)
-        try:
-            import cv2
-
-            image = cv2.imread(str(image_path))
-            max_side = int(os.getenv("ALV_OCR_MAX_SIDE", "1200"))
-            if image is not None and max(image.shape[:2]) > max_side:
-                scale = max_side / max(image.shape[:2])
-                ocr_input = cv2.resize(
-                    image,
-                    None,
-                    fx=scale,
-                    fy=scale,
-                    interpolation=cv2.INTER_AREA,
-                )
-        except ImportError:
-            pass
-
-        output = self._ocr.predict(ocr_input)
+        output = self._ocr.predict(str(image_path))
         texts: list[str] = []
         scores: list[float] = []
         for page in output:

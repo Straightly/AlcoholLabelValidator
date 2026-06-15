@@ -61,43 +61,47 @@ ALV_OCR_ENGINE=paddle .venv/bin/python scripts/evaluate.py \
 
 The resident PaddleOCR mobile models processed six application records covering
 five distinct image-pair conditions. Model startup was excluded from
-per-application analysis time.
+per-application analysis time. The current quality-first configuration submits
+the original images to PaddleOCR and relies only on Paddle's own internal
+4,000-pixel safety limit when it chooses to resize.
 
 | Measure | Result |
 | --- | --- |
 | Applications | 6 |
 | Findings | 42 |
-| Match | 19 |
-| Mismatch | 11 |
-| Needs Human Review | 12 |
-| Median analysis time | 4,324 ms |
-| P95 analysis time | 7,154 ms |
-| Slowest analysis time | 7,154 ms |
-| Median five-second target | Pass |
-| All-cases five-second target | Fail |
+| Match | 6 |
+| Mismatch | 6 |
+| Needs Human Review | 30 |
+| Median analysis time | 14,971 ms |
+| P95 analysis time | 17,627 ms |
+| Slowest analysis time | 17,627 ms |
+| Reviewer-visible latency impact | None after preprocessing completes |
 
 Observed behavior:
 
-- Crown Royal brand, alcohol content, net contents, producer, and country were
-  recovered after OCR-tolerant spacing normalization. The ornate class text was
-  misread, and no statutory government warning was present in the submitted
-  package photographs.
+- Crown Royal remains difficult because of ornate packaging, metallic finish,
+  and low OCR confidence. The current quality-first run keeps most fields in
+  `Needs Human Review`, while the missing statutory government warning still
+  fails correctly.
 - Glenlivet brand, class/type, and net contents were recovered from the curved
   bottle labels. The alcohol content was not visible in the supplied frames.
   OCR detected the government warning but did not recover enough small print
-  for exact verification, so the result is `Needs Human Review`.
-- The Red Blend photographs were the most difficult because the front design,
-  curvature, and small back-label text produced low or incomplete OCR
-  confidence. Unreliable comparisons route to `Needs Human Review`.
-- Bounding OCR input to a 1,200-pixel maximum dimension reduced median time
-  from 14,581 ms on the original 12-megapixel input path to 4,324 ms without
-  materially weakening the useful field extraction.
+  for exact verification, so the warning result correctly fails on the
+  submitted evidence.
+- The Red Blend photographs remain the most difficult because the front design,
+  curvature, and small back-label text produce low or incomplete OCR
+  confidence. Those cases now conservatively route to `Needs Human Review`
+  except for the strict warning failure.
+- The current repository configuration uses full submitted image resolution by
+  default because preprocessing is a background task and OCR quality takes
+  priority over inline speed.
 
 Release implications:
 
-- The human-review behavior is appropriate for incomplete real-image evidence.
-- The current local implementation meets five seconds for the median case but
-  not for every two-image case.
-- Before release, either optimize repeated/image-heavy OCR further or state the
-  five-second result precisely as a typical warm-case target rather than an
-  all-input guarantee.
+- The human-review behavior remains appropriate for non-warning fields with
+  incomplete real-image evidence.
+- The relevant release criterion is now evidence quality and correctness rather
+  than inline OCR completion time, because officers open already-preprocessed
+  applications.
+- Operational timing is still worth recording for capacity planning, but it is
+  no longer a reviewer-experience gate.

@@ -79,20 +79,12 @@ def warning_finding(label_text: str, confidence: float) -> Finding:
     exact = HEALTH_WARNING in " ".join(label_text.split())
     normalized = normalize(HEALTH_WARNING) in normalize(label_text)
     warning_detected = "government warning" in normalize(label_text)
-    uncertain = confidence < 0.65 or (warning_detected and not exact)
-    result = (
-        CheckResult.NEEDS_HUMAN_REVIEW
-        if uncertain
-        else CheckResult.MATCH if exact else CheckResult.MISMATCH
-    )
+    result = CheckResult.MATCH if exact else CheckResult.MISMATCH
     explanation = (
-        "OCR confidence is too low to verify the statutory warning."
-        if confidence < 0.65
-        else "A government warning is visible, but OCR did not recover enough text for exact verification."
-        if uncertain
-        else "The complete warning wording, capitalization, and punctuation match."
+        "The complete warning wording, capitalization, and punctuation match."
         if exact
-        else "The complete exact warning was not found."
+        else "The submitted evidence does not establish the complete exact warning text."
+        + (" A partial warning was detected, but the small print is not readable enough to pass." if warning_detected else "")
         + (" Similar wording was found, but exact presentation differs." if normalized else "")
     )
     return Finding(

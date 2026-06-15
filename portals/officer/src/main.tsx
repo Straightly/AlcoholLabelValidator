@@ -37,6 +37,19 @@ type Review = {
   processing_error: string | null;
 };
 
+type IntakeStatus = {
+  state: "idle" | "running" | "completed" | "failed";
+  message: string;
+  started: boolean;
+  started_at: string | null;
+  finished_at: string | null;
+  packages_found: number;
+  packages_imported: number;
+  packages_skipped: number;
+  applications_preprocessed: number;
+  applications_with_errors: number;
+};
+
 async function responseMessage(response: Response) {
   const body = await response.json().catch(() => null);
   return body?.detail ?? body?.message ?? response.statusText;
@@ -50,6 +63,7 @@ function App() {
   const [overrideNote, setOverrideNote] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [intakeStatus, setIntakeStatus] = useState<IntakeStatus | null>(null);
 
   async function refresh() {
     const response = await fetch("/api/review-queue");
@@ -62,6 +76,16 @@ function App() {
     setSelected((current) =>
       current ? items.find((item) => item.application_id === current.application_id) ?? items[0] ?? null : items[0] ?? null
     );
+  }
+
+  async function refreshIntakeStatus() {
+    const response = await fetch("/api/demo/process-sample-intake");
+    if (!response.ok) return;
+    const status: IntakeStatus = await response.json();
+    setIntakeStatus((current) => ({ ...current, ...status, started: current?.started ?? false }));
+    if (status.state === "completed") {
+      await refresh();
+    }
   }
 
   async function runAction(url: string, success: (body: any) => string) {
@@ -83,6 +107,19 @@ function App() {
   useEffect(() => {
     if (loggedIn) void refresh();
   }, [loggedIn]);
+
+  useEffect(() => {
+    if (!loggedIn) return;
+    void refreshIntakeStatus();
+  }, [loggedIn]);
+
+  useEffect(() => {
+    if (!loggedIn || intakeStatus?.state !== "running") return;
+    const handle = window.setInterval(() => {
+      void refreshIntakeStatus();
+    }, 1500);
+    return () => window.clearInterval(handle);
+  }, [loggedIn, intakeStatus?.state]);
 
   useEffect(() => {
     if (selected) {
@@ -137,14 +174,28 @@ function App() {
         <p>applications ready</p>
         <button
           className="process"
-          disabled={busy}
-          onClick={() => void runAction("/api/demo/process-sample-intake", (result) =>
-            result.packages_imported
-              ? `Analyzed ${result.applications_preprocessed} applications in ${result.packages_imported} package.`
-              : "Sample intake was already processed; no artifacts were overwritten."
-          )}
+          disabled={busy || intakeStatus?.state === "running"}
+          onClick={async () => {
+            setBusy(true);
+            setMessage("");
+            try {
+              const response = await fetch("/api/demo/process-sample-intake", { method: "POST" });
+              if (!response.ok) throw new Error(await responseMessage(response));
+              const status: IntakeStatus = await response.json();
+              setIntakeStatus(status);
+              setMessage(
+                status.started
+                  ? "Background preprocessing started. This can take a minute or two. The queue will refresh when it finishes."
+                  : status.message
+              );
+            } catch (error) {
+              setMessage(error instanceof Error ? error.message : "The operation failed.");
+            } finally {
+              setBusy(false);
+            }
+          }}
         >
-          {busy ? "Working…" : "Process Sample Intake"}
+          {intakeStatus?.state === "running" ? "Preprocessing…" : busy ? "Working…" : "Process Sample Intake"}
         </button>
         <button className="refresh" disabled={busy} onClick={() => void refresh()}>Refresh queue</button>
         <button
@@ -154,6 +205,24 @@ function App() {
         >
           Reset Demo Data
         </button>
+        {intakeStatus && (
+          <section className={`intake-status ${intakeStatus.state}`}>
+            <strong>Preprocessing status</strong>
+            <p>{intakeStatus.message}</p>
+            <small>
+              State: {intakeStatus.state}
+              {intakeStatus.started_at ? ` · started ${new Date(intakeStatus.started_at).toLocaleTimeString()}` : ""}
+              {intakeStatus.finished_at ? ` · finished ${new Date(intakeStatus.finished_at).toLocaleTimeString()}` : ""}
+            </small>
+            {intakeStatus.state !== "idle" && (
+              <small>
+                Packages: {intakeStatus.packages_imported}/{intakeStatus.packages_found} imported,
+                {" "}Applications: {intakeStatus.applications_preprocessed},
+                {" "}Errors: {intakeStatus.applications_with_errors}
+              </small>
+            )}
+          </section>
+        )}
         <nav aria-label="Applications ready for review">
           {queue.map((item) => (
             <button

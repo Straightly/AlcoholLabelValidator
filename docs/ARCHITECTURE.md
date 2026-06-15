@@ -4,7 +4,8 @@ The prototype uses one FastAPI process and one browser origin. FastAPI serves
 the built React application, API, and label images.
 
 ```text
-Sample package
+Sample package trigger
+  -> background preprocessing job
   -> immutable submission and images
   -> OpenCV quality measurements
   -> local PaddleOCR detection and recognition
@@ -13,11 +14,10 @@ Sample package
   -> compliance-officer decision
 ```
 
-PaddleOCR uses the mobile detection and recognition models to stay within the
-five-second interaction target. More expensive orientation and unwarping
-models were evaluated but removed from the default path after measurement.
-OpenCV provides inexpensive quality signals, while uncertain evidence remains
-with the officer.
+PaddleOCR uses the local mobile detection and recognition models in the
+quality-first background preprocessing path. Reviewer interaction reads the
+completed analysis artifacts rather than waiting on OCR inline. OpenCV provides
+inexpensive quality signals, while uncertain evidence remains with the officer.
 
 The committed fixtures include OCR sidecars for deterministic automated tests.
 `ALV_OCR_ENGINE=paddle` ignores those sidecars and exercises the real local OCR

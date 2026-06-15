@@ -18,6 +18,11 @@ aside h1 { font: 900 5rem/1 "Arial Black", "Avenir Next", sans-serif; margin: 2r
 .process { background: #f6c945; color: #111827; border-color: #f6c945; margin-top: 1rem; font-weight: 700; }
 .refresh { background: transparent; margin-top: 0.6rem; }
 .reset { background: transparent; margin: 0.6rem 0 2rem; color: #f7aaa0; border-color: #92544f; }
+.intake-status { margin: 0 0 1.5rem; padding: 0.8rem; border: 1px solid #667085; background: #1f2937; display: grid; gap: 0.3rem; }
+.intake-status p, .intake-status small { margin: 0; }
+.intake-status.completed { border-color: #5ea46d; }
+.intake-status.failed { border-color: #d47d74; }
+.intake-status.running { border-color: #f6c945; }
 nav { display: grid; gap: 0.5rem; }
 nav button { text-align: left; color: #fff; background: #1f2937; border: 0; padding: 0.9rem; }
 nav button.active { background: #f6c945; color: #111827; }

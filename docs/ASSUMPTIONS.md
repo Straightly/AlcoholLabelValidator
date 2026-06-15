@@ -5,7 +5,7 @@
 - The prototype is a standalone compliance-officer review aid.
 - It does not connect directly to COLAs Online.
 - Sample packages represent applications received from an upstream system.
-- `Process Sample Intake` manually starts sample analysis.
+- `Process Sample Intake` manually starts a background preprocessing job.
 - The officer remains responsible for the final approval or rejection.
 - The fake login supplies demonstration context only.
 
@@ -31,10 +31,11 @@
 - Case, spacing, and ordinary punctuation may be normalized for descriptive
   field comparisons.
 - Government-warning wording, capitalization, and punctuation are checked
-  strictly.
+  strictly, and incomplete warning evidence fails rather than passing on a
+  partial match.
 - Conditional disclosures, subtype-specific rules, formulation-dependent
   requirements, and definitive physical measurements are outside the POC.
-- Unreadable or uncertain evidence returns `Needs Human Review`.
+- Unreadable or uncertain non-warning evidence returns `Needs Human Review`.
 - Physical dimensions cannot be established definitively from an uncalibrated
   image.
 
@@ -45,6 +46,7 @@
 - The browser requires access only to the deployed application origin.
 - The demonstration uses one FastAPI process serving both the API and the built
   React application.
+- Sample-intake imports are analyzed in a background job before officer review.
 
 ## Production Boundary
 

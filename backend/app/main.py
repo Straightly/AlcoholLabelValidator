@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .analysis import analyze_application
+from .intake_jobs import IntakeJobRunner
 from .models import DecisionArtifact, DecisionCreate, SubmissionArtifact, SubmissionCreate
 from .store import ArtifactExistsError, ArtifactStore
 from .vision import LocalVisionEngine
@@ -34,29 +35,7 @@ def create_app(
     app.state.fixture_dir = intake
     app.state.vision = vision
 
-    origins = os.getenv("ALV_ALLOWED_ORIGINS", "http://localhost:5174").split(",")
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=origins,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
-    @app.get("/api/health")
-    def health() -> dict[str, str]:
-        return {"status": "ok"}
-
-    @app.get("/api/ready")
-    def ready() -> dict[str, object]:
-        return {
-            "status": "ready" if vision.ready else "initializing",
-            "ready": vision.ready,
-            "engine": vision.engine_name,
-            "detail": vision.detail,
-        }
-
-    @app.post("/api/demo/process-sample-intake")
-    def process_sample_intake() -> dict[str, int]:
+    def import_and_preprocess_sample_intake() -> dict[str, int]:
         result = {
             "packages_found": 0,
             "packages_imported": 0,
@@ -92,9 +71,46 @@ def create_app(
                 result["applications_with_errors"] += int(review.processing_error is not None)
         return result
 
+    intake_jobs = IntakeJobRunner(import_and_preprocess_sample_intake)
+    app.state.intake_jobs = intake_jobs
+
+    origins = os.getenv("ALV_ALLOWED_ORIGINS", "http://localhost:5174").split(",")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    @app.get("/api/health")
+    def health() -> dict[str, str]:
+        return {"status": "ok"}
+
+    @app.get("/api/ready")
+    def ready() -> dict[str, object]:
+        return {
+            "status": "ready" if vision.ready else "initializing",
+            "ready": vision.ready,
+            "engine": vision.engine_name,
+            "detail": vision.detail,
+        }
+
+    @app.get("/api/demo/process-sample-intake")
+    def sample_intake_status() -> dict[str, object]:
+        return intake_jobs.status()
+
+    @app.post("/api/demo/process-sample-intake", status_code=202)
+    def process_sample_intake() -> dict[str, object]:
+        started, status = intake_jobs.start()
+        return {
+            **status,
+            "started": started,
+        }
+
     @app.post("/api/demo/reset")
     def reset_demo() -> dict[str, str]:
         store.reset()
+        intake_jobs.reset()
         return {"status": "reset"}
 
     @app.post("/api/submissions", status_code=201)

@@ -1,8 +1,10 @@
 import shutil
+import time
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+from backend.app.analysis import warning_finding
 from backend.app.main import create_app
 
 
@@ -39,6 +41,18 @@ def sample_submission() -> dict:
             }
         ],
     }
+
+
+def wait_for_sample_intake(client: TestClient, timeout_seconds: float = 5.0) -> dict:
+    deadline = time.time() + timeout_seconds
+    while time.time() < deadline:
+        status = client.get("/api/demo/process-sample-intake")
+        assert status.status_code == 200
+        body = status.json()
+        if body["state"] in {"completed", "failed", "idle"}:
+            return body
+        time.sleep(0.05)
+    raise AssertionError("Timed out waiting for sample intake background job.")
 
 
 def test_submit_review_decide_flow(tmp_path: Path) -> None:
@@ -97,13 +111,20 @@ def test_process_sample_intake_is_idempotent(tmp_path: Path) -> None:
     with TestClient(create_app(tmp_path, fixture_dir)) as client:
         assert client.get("/api/ready").json()["ready"] is True
         first = client.post("/api/demo/process-sample-intake")
-        assert first.status_code == 200
-        assert first.json() == {
+        assert first.status_code == 202
+        assert first.json()["state"] == "running"
+        completed = wait_for_sample_intake(client)
+        assert completed | {"started": True} == {
+            "state": "completed",
+            "message": "Background preprocessing completed. Refresh the queue to review new applications.",
+            "started_at": completed["started_at"],
+            "finished_at": completed["finished_at"],
             "packages_found": 1,
             "packages_imported": 1,
             "packages_skipped": 0,
             "applications_preprocessed": 2,
             "applications_with_errors": 0,
+            "started": True,
         }
         queue = client.get("/api/review-queue").json()
         assert len(queue) == 2
@@ -111,8 +132,9 @@ def test_process_sample_intake_is_idempotent(tmp_path: Path) -> None:
         assert any(item["result"] == "Mismatch" for item in attention["findings"])
 
         second = client.post("/api/demo/process-sample-intake")
-        assert second.status_code == 200
-        assert second.json()["packages_skipped"] == 1
+        assert second.status_code == 202
+        second_complete = wait_for_sample_intake(client)
+        assert second_complete["packages_skipped"] == 1
 
         assert client.post("/api/demo/reset").status_code == 200
         assert client.get("/api/review-queue").json() == []
@@ -122,6 +144,7 @@ def test_approval_requires_override_for_unresolved_findings(tmp_path: Path) -> N
     fixture_dir = isolated_fixture_dir(tmp_path)
     with TestClient(create_app(tmp_path, fixture_dir)) as client:
         client.post("/api/demo/process-sample-intake")
+        wait_for_sample_intake(client)
         review = next(
             item
             for item in client.get("/api/review-queue").json()
@@ -154,6 +177,15 @@ def test_frontend_and_images_are_served_by_fastapi(tmp_path: Path) -> None:
     with TestClient(create_app(tmp_path, fixture_dir)) as client:
         assert client.get("/").status_code == 200
         client.post("/api/demo/process-sample-intake")
+        wait_for_sample_intake(client)
         image = client.get("/api/images/sample-intake-001/sample-compliant-front.png")
         assert image.status_code == 200
         assert image.headers["content-type"].startswith("image/png")
+
+
+def test_partial_warning_text_fails() -> None:
+    finding = warning_finding(
+        "GOVERNMENT WARNING: (1) ACCORDING TO THE SURGEON GENERAL",
+        0.99,
+    )
+    assert finding.result == "Mismatch"
