@@ -198,7 +198,6 @@ Use `python3.11` instead when Python 3.11 is installed.
 Start the application:
 
 ```bash
-export ALV_OCR_ENGINE=paddle
 ./run.sh
 ```
 
@@ -251,7 +250,6 @@ Use `py -3.11` instead when Python 3.11 is installed.
 Start the application:
 
 ```powershell
-$env:ALV_OCR_ENGINE = "paddle"
 powershell -ExecutionPolicy Bypass -File .\run.ps1
 ```
 
@@ -286,7 +284,7 @@ new `submission_id` and new `application_id` values for every test package.
 
 Then:
 
-1. Start the application with `ALV_OCR_ENGINE=paddle`.
+1. Start the application.
 2. Select `Reset Demo Data`.
 3. Select `Process Sample Intake`.
 4. Wait for the background preprocessing status to complete.

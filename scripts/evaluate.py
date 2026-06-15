@@ -1,4 +1,5 @@
 import argparse
+import os
 import statistics
 import tempfile
 import time
@@ -24,6 +25,7 @@ def wait_for_sample_intake(client: TestClient, timeout_seconds: float = 300.0) -
 
 
 def main() -> int:
+    os.environ.setdefault("ALV_OCR_ENGINE", "paddle")
     parser = argparse.ArgumentParser(description="Evaluate label-review fixtures.")
     parser.add_argument("--max-ms", type=int, default=5000)
     parser.add_argument(

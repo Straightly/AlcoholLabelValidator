@@ -20,5 +20,5 @@ completed analysis artifacts rather than waiting on OCR inline. OpenCV provides
 inexpensive quality signals, while uncertain evidence remains with the officer.
 
 The committed fixtures include OCR sidecars for deterministic automated tests.
-`ALV_OCR_ENGINE=paddle` ignores those sidecars and exercises the real local OCR
-pipeline used for deployment.
+The launch scripts and evaluation script enable PaddleOCR by default for the
+POC and exercise the real local OCR pipeline used for deployment.

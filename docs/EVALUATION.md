@@ -7,7 +7,7 @@ Evaluation date: June 14, 2026
 Command:
 
 ```bash
-ALV_OCR_ENGINE=paddle .venv/bin/python scripts/evaluate.py
+.venv/bin/python scripts/evaluate.py
 ```
 
 Results on the development Mac:
@@ -54,7 +54,7 @@ EXIF/GPS metadata.
 Command:
 
 ```bash
-ALV_OCR_ENGINE=paddle .venv/bin/python scripts/evaluate.py \
+.venv/bin/python scripts/evaluate.py \
   --fixture-dir fixtures/evaluation-real \
   --max-ms 5000
 ```
