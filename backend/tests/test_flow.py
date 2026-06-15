@@ -1,8 +1,19 @@
+import shutil
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
 from backend.app.main import create_app
+
+
+def isolated_fixture_dir(tmp_path: Path) -> Path:
+    source = Path(__file__).resolve().parents[2] / "fixtures" / "intake"
+    destination = tmp_path / "test-fixtures"
+    destination.mkdir()
+    for path in source.iterdir():
+        if path.is_file() and not path.name.startswith("."):
+            shutil.copy2(path, destination / path.name)
+    return destination
 
 
 def sample_submission() -> dict:
@@ -31,7 +42,7 @@ def sample_submission() -> dict:
 
 
 def test_submit_review_decide_flow(tmp_path: Path) -> None:
-    fixture_dir = Path(__file__).resolve().parents[2] / "fixtures" / "intake"
+    fixture_dir = isolated_fixture_dir(tmp_path)
     client = TestClient(create_app(tmp_path, fixture_dir))
 
     with client:
@@ -82,7 +93,7 @@ def test_submit_review_decide_flow(tmp_path: Path) -> None:
 
 
 def test_process_sample_intake_is_idempotent(tmp_path: Path) -> None:
-    fixture_dir = Path(__file__).resolve().parents[2] / "fixtures" / "intake"
+    fixture_dir = isolated_fixture_dir(tmp_path)
     with TestClient(create_app(tmp_path, fixture_dir)) as client:
         assert client.get("/api/ready").json()["ready"] is True
         first = client.post("/api/demo/process-sample-intake")
@@ -108,7 +119,7 @@ def test_process_sample_intake_is_idempotent(tmp_path: Path) -> None:
 
 
 def test_approval_requires_override_for_unresolved_findings(tmp_path: Path) -> None:
-    fixture_dir = Path(__file__).resolve().parents[2] / "fixtures" / "intake"
+    fixture_dir = isolated_fixture_dir(tmp_path)
     with TestClient(create_app(tmp_path, fixture_dir)) as client:
         client.post("/api/demo/process-sample-intake")
         review = next(

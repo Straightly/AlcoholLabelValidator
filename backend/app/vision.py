@@ -72,7 +72,25 @@ class LocalVisionEngine:
                 "or use the committed demonstration fixtures."
             )
 
-        output = self._ocr.predict(str(image_path))
+        ocr_input: Any = str(image_path)
+        try:
+            import cv2
+
+            image = cv2.imread(str(image_path))
+            max_side = int(os.getenv("ALV_OCR_MAX_SIDE", "1200"))
+            if image is not None and max(image.shape[:2]) > max_side:
+                scale = max_side / max(image.shape[:2])
+                ocr_input = cv2.resize(
+                    image,
+                    None,
+                    fx=scale,
+                    fy=scale,
+                    interpolation=cv2.INTER_AREA,
+                )
+        except ImportError:
+            pass
+
+        output = self._ocr.predict(ocr_input)
         texts: list[str] = []
         scores: list[float] = []
         for page in output:

@@ -14,8 +14,10 @@
 - Inputs use opaque submission and application identifiers.
 - Applicant names, contact information, account information, payment
   information, and unrelated COLA data remain outside the prototype.
-- Seeded fixtures use publication-safe retail-label images and synthetic
-  application records.
+- Seeded fixtures use generated label images and synthetic application records.
+- The committed real-image evaluation set uses applicant-captured retail-label
+  photographs reviewed for visible personal information and stripped of
+  EXIF/GPS metadata.
 - A package may contain one or many applications.
 - An application may contain one or many label images.
 - Seeded UI samples use no more than two images per application.

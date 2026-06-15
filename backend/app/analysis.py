@@ -28,16 +28,30 @@ def normalize(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", value.casefold()).strip()
 
 
-def compare_field(field_name: str, expected: str, label_text: str, confidence: float) -> Finding:
+def compact(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", value.casefold())
+
+
+def compare_field(
+    field_name: str,
+    expected: str,
+    label_text: str,
+    confidence: float,
+    has_low_confidence_image: bool,
+) -> Finding:
     expected_normalized = normalize(expected)
     label_normalized = normalize(label_text)
     if field_name == "alcohol_content":
         expected_numbers = re.findall(r"\d+(?:\.\d+)?", expected)
         observed_numbers = re.findall(r"\d+(?:\.\d+)?", label_text)
         matched = bool(expected_numbers) and all(number in observed_numbers for number in expected_numbers)
+    elif field_name == "class_type":
+        expected_tokens = set(expected_normalized.split())
+        observed_tokens = set(label_normalized.split())
+        matched = bool(expected_tokens) and expected_tokens <= observed_tokens
     else:
-        matched = expected_normalized in label_normalized
-    uncertain = confidence < 0.65
+        matched = compact(expected) in compact(label_text)
+    uncertain = confidence < 0.65 or (not matched and has_low_confidence_image)
     result = (
         CheckResult.NEEDS_HUMAN_REVIEW
         if uncertain
@@ -64,7 +78,8 @@ def compare_field(field_name: str, expected: str, label_text: str, confidence: f
 def warning_finding(label_text: str, confidence: float) -> Finding:
     exact = HEALTH_WARNING in " ".join(label_text.split())
     normalized = normalize(HEALTH_WARNING) in normalize(label_text)
-    uncertain = confidence < 0.65
+    warning_detected = "government warning" in normalize(label_text)
+    uncertain = confidence < 0.65 or (warning_detected and not exact)
     result = (
         CheckResult.NEEDS_HUMAN_REVIEW
         if uncertain
@@ -72,6 +87,8 @@ def warning_finding(label_text: str, confidence: float) -> Finding:
     )
     explanation = (
         "OCR confidence is too low to verify the statutory warning."
+        if confidence < 0.65
+        else "A government warning is visible, but OCR did not recover enough text for exact verification."
         if uncertain
         else "The complete warning wording, capitalization, and punctuation match."
         if exact
@@ -135,9 +152,12 @@ def analyze_application(
             errors.append(f"{filename}: {exc}")
 
     combined_text = "\n".join(item.extracted_text for item in images)
-    confidence = min((item.confidence for item in images), default=0.0)
+    # Fields may appear on only one of several submitted labels. A weak front
+    # image must not invalidate reliable evidence recovered from the back.
+    confidence = max((item.confidence for item in images), default=0.0)
+    has_low_confidence_image = any(item.confidence < 0.65 for item in images)
     findings = [
-        compare_field(name, value, combined_text, confidence)
+        compare_field(name, value, combined_text, confidence, has_low_confidence_image)
         for name, value in application.fields.model_dump(exclude_none=True).items()
     ]
     findings.append(warning_finding(combined_text, confidence))

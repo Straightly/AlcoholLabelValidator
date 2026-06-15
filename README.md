@@ -263,6 +263,7 @@ Open `http://127.0.0.1:8000/`. Press `Ctrl+C` to stop the application.
 | `ALV_PORT` | `8000` | HTTP port |
 | `ALV_DATA_DIR` | `./data` | Runtime artifact directory |
 | `ALV_FIXTURE_DIR` | `./fixtures/intake` | Sample intake directory |
+| `ALV_OCR_MAX_SIDE` | `1200` | Maximum image dimension supplied to local OCR |
 
 ## Add Your Own Bottle Photographs
 
@@ -290,7 +291,18 @@ Then:
 4. Open the new applications in the review queue.
 
 The `user` folder is scanned automatically. Filled manifests and photographs
-there are ignored by Git.
+there are ignored by Git because it is a private staging area.
+
+Final, reviewed retail-label fixtures belong in:
+
+```text
+fixtures/evaluation-real/
+```
+
+That directory is committed to Git so reviewers can reproduce the real-image
+evaluation. It contains only images reviewed for visible personal information
+and stripped of EXIF/GPS metadata. To run only that set, set
+`ALV_FIXTURE_DIR=fixtures/evaluation-real` before starting the application.
 
 ## Manual Acceptance Test
 

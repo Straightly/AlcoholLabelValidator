@@ -1,0 +1,88 @@
+{
+  "submission_id": "real_bottle_evaluation_001",
+  "source_label": "Publication-safe retail-label evaluation set",
+  "submission_type": "batch",
+  "applications": [
+    {
+      "application_id": "crown_royal_reserve_001",
+      "beverage_category": "distilled_spirits",
+      "fields": {
+        "brand_name": "CROWN ROYAL RESERVE",
+        "class_type": "BLENDED CANADIAN WHISKY",
+        "alcohol_content": "40% ALC./VOL. (80 PROOF)",
+        "net_contents": "750 mL",
+        "producer_name_address": "THE CROWN ROYAL COMPANY, NORWALK, CT",
+        "country_of_origin": "CANADA"
+      },
+      "image_filenames": [
+        "crown-royal-reserve-front.jpg",
+        "crown-royal-reserve-back.jpg"
+      ]
+    },
+    {
+      "application_id": "glenlivet_good_001",
+      "beverage_category": "distilled_spirits",
+      "fields": {
+        "brand_name": "THE GLENLIVET",
+        "class_type": "SINGLE MALT SCOTCH WHISKY",
+        "alcohol_content": "40% ALC./VOL. (80 PROOF)",
+        "net_contents": "750 mL",
+        "producer_name_address": "THE GLENLIVET DISTILLING COMPANY, NEW YORK, NY",
+        "country_of_origin": "SCOTLAND"
+      },
+      "image_filenames": [
+        "glenlivet-good-front.jpg",
+        "glenlivet-good-back.jpg"
+      ]
+    },
+    {
+      "application_id": "glenlivet_perspective_001",
+      "beverage_category": "distilled_spirits",
+      "fields": {
+        "brand_name": "THE GLENLIVET",
+        "class_type": "SINGLE MALT SCOTCH WHISKY",
+        "alcohol_content": "40% ALC./VOL. (80 PROOF)",
+        "net_contents": "750 mL",
+        "producer_name_address": "THE GLENLIVET DISTILLING COMPANY, NEW YORK, NY",
+        "country_of_origin": "SCOTLAND"
+      },
+      "image_filenames": [
+        "glenlivet-bad-front.jpg",
+        "glenlivet-good-back.jpg"
+      ]
+    },
+    {
+      "application_id": "red_blend_good_001",
+      "beverage_category": "wine",
+      "fields": {
+        "brand_name": "RED BLEND PORTUGAL",
+        "class_type": "MEDIUM DRY RED WINE",
+        "alcohol_content": "13.5% BY VOL.",
+        "net_contents": "750 mL",
+        "producer_name_address": "TRI-VIN IMPORTS, INC., NEW ROCHELLE, NY 10801",
+        "country_of_origin": "PORTUGAL"
+      },
+      "image_filenames": [
+        "red-blend-portugal-good-front.jpg",
+        "red-blend-portugal-good-back.jpg"
+      ]
+    },
+    {
+      "application_id": "red_blend_perspective_001",
+      "beverage_category": "wine",
+      "fields": {
+        "brand_name": "RED BLEND PORTUGAL",
+        "class_type": "MEDIUM DRY RED WINE",
+        "alcohol_content": "13.5% BY VOL.",
+        "net_contents": "750 mL",
+        "producer_name_address": "TRI-VIN IMPORTS, INC., NEW ROCHELLE, NY 10801",
+        "country_of_origin": "PORTUGAL"
+      },
+      "image_filenames": [
+        "red-blend-portugal-good-front.jpg",
+        "red-blend-portugal-skewed-back.jpg"
+      ]
+    }
+  ]
+}
+
