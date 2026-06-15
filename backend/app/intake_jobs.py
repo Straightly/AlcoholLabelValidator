@@ -42,8 +42,9 @@ class IntakeJobRunner:
                 started=True,
                 state="running",
                 message=(
-                    "Background preprocessing started. This can take a minute or two; "
-                    "refresh or wait for completion before reviewing the queue."
+                    "Background preprocessing started. Due to VM hardware limitations (low memory and no GPU), "
+                    "processing all batch labels can take up to 30 minutes. In a production environment with "
+                    "appropriate GPU-accelerated hardware, this background job runs asynchronously and finishes in seconds."
                 ),
                 started_at=utc_now_iso(),
             )

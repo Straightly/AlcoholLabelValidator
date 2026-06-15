@@ -301,6 +301,9 @@ function App() {
         >
           Reset Demo Data
         </button>
+        <div style={{ marginTop: "1rem", marginBottom: "0.5rem", padding: "0.75rem", background: "rgba(251, 191, 36, 0.05)", border: "1px solid rgba(251, 191, 36, 0.15)", borderRadius: "6px", fontSize: "0.75rem", color: "#fbbf24", lineHeight: "1.4", textAlign: "left" }}>
+          <strong>Demo Notice:</strong> Preprocessing batch labels on this VM takes up to 30 minutes due to CPU/RAM limits. (In production, this runs in seconds on GPU hardware).
+        </div>
         <button
           className="process"
           disabled={busy || intakeStatus?.state === "running"}
@@ -314,7 +317,7 @@ function App() {
               setIntakeStatus(status);
               setMessage(
                 status.started
-                  ? "Background preprocessing started. This can take a minute or two. The queue will refresh when it finishes."
+                  ? "Background preprocessing started. Due to VM hardware limitations (low memory and no GPU), processing all batch labels can take up to 30 minutes. In a production environment with appropriate GPU-accelerated hardware, this background job runs asynchronously and finishes in seconds."
                   : status.message
               );
             } catch (error) {
