@@ -75,18 +75,20 @@ Each check returns `Match`, `Mismatch`, `Needs Human Review`, or
 - React/TypeScript compliance-officer interface
 - Python/FastAPI API
 - OpenCV image preparation and quality signals
-- PaddleOCR local text detection and recognition
-- Deterministic field comparison and versioned selected TTB checks
+- Multi-engine local vision pipeline supporting PaddleOCR (local weights), Tesseract OCR (CPU package), and local Ollama VLM API (Moondream/MiniCPM-V)
+- Deterministic field comparison and versioned selected TTB checks (including case-insensitive warning validation)
 - Separate immutable submission, analysis, and decision artifacts
 - One FastAPI process serving the API and built React application
 - Background preprocessing for sample-intake imports so officers review completed analysis artifacts
-- Local runtime processing using prepared OCR models and application assets
+- Local runtime processing using prepared OCR models, local API engines, and application assets
 
 ## Tools
 
 - CPython 3.11 or 3.12
 - FastAPI, Pydantic, and Uvicorn
 - OpenCV, PaddlePaddle, and PaddleOCR
+- Tesseract OCR (Pytesseract) fallback integration
+- Ollama local model API integration (LLMs & VLMs)
 - React, TypeScript, and Vite
 - pytest and Ruff
 
@@ -263,6 +265,23 @@ Open `http://127.0.0.1:8000/`. Press `Ctrl+C` to stop the application.
 | `ALV_PORT` | `8000` | HTTP port |
 | `ALV_DATA_DIR` | `./data` | Runtime artifact directory |
 | `ALV_FIXTURE_DIR` | `./fixtures/evaluation-real` | Sample intake directory |
+| `ALV_OCR_ENGINE` | `fixture-sidecar` | Vision runtime engine: `fixture-sidecar` (default), `paddle`, `tesseract`, or `ollama` |
+| `ALV_OLLAMA_HOST` | `http://localhost:11434` | Endpoint host for Ollama local service API |
+| `ALV_OLLAMA_MODEL`| `moondream` | Active Ollama model name, e.g. `moondream` or `minicpm-v` |
+
+## Local VLM and OCR Engine Experiments
+
+During this project, we executed and verified three different local image processing strategies to evaluate their feasibility on a restricted CPU-only cloud VM deployment (ARM64 Ampere instance, 10 GB RAM, 5 GB Swap):
+
+1. **PaddleOCR Engine (Baseline)**:
+   - *Findings*: The default deep-learning engine performs outstanding layout and word matching. However, on CPU-only ARM64 instances, the standard library builds can raise core-dumping segmentation faults (SIGSEGV) during inference unless OpenBLAS environment parameters are manually bounded (e.g. `OPENBLAS_CORETYPE=ARMV8`).
+2. **Tesseract OCR Engine (System Fallback)**:
+   - *Findings*: Implemented pytesseract integration as a lightweight, zero-segmentation-fault system fallback. While extremely fast and light on resources, Tesseract has severe layout limitations on natural-scene bottle packaging and stylized labels, leading to high character error rates.
+3. **Local VLM API Engine (Ollama)**:
+   - *Findings*: Implemented base64 image serialization and queried local Ollama endpoints using standard library HTTP requests to support state-of-the-art offline Vision-Language Models.
+   - *Model Comparison*:
+     - **`moondream` (1.5B)**: Extremely fast CPU execution, but struggles with strict verbatim text extraction, frequently generating conversational image captions (e.g., *"This image shows a bottle of wine..."*) rather than copying label text verbatim, causing rule match failures.
+     - **`minicpm-v` (8B)**: Extremely high transcription and layout accuracy, matching professional OCR backends. However, running an 8B model on a 10 GB RAM VM CPU triggers heavy OS memory swapping, causing performance to degrade exponentially due to disk-swapping latency. We optimized this in the API client by limiting context token limits (`num_ctx`), disabling temperature (`0.0`), bounding output length (`num_predict`), and extending timeouts to 300 seconds.
 
 ## Add Your Own Bottle Photographs
 

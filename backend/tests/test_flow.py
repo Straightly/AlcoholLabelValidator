@@ -5,8 +5,9 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.app.analysis import warning_finding
+from backend.app.analysis import compare_field, warning_finding
 from backend.app.main import create_app
+from backend.app.models import CheckResult
 
 
 def isolated_fixture_dir(tmp_path: Path) -> Path:
@@ -315,4 +316,44 @@ def test_payload_size_limit(tmp_path: Path) -> None:
             content=b"x" * 100,
         )
         assert response.status_code == 413
+
+
+def test_smart_compare_field_normalizations() -> None:
+    # Test volume abbreviation normalization
+    finding_vol = compare_field(
+        "net_contents",
+        "750 Milliliters",
+        "750 mL",
+        1.0,
+        False,
+    )
+    assert finding_vol.result == CheckResult.MATCH
+
+    finding_vol2 = compare_field(
+        "net_contents",
+        "1 Liter",
+        "1 L",
+        1.0,
+        False,
+    )
+    assert finding_vol2.result == CheckResult.MATCH
+
+    # Test address abbreviation & state abbreviation normalization
+    finding_addr = compare_field(
+        "producer_name_address",
+        "Old Tom Distillery, Louisville, Kentucky",
+        "Old Tom Distillery, Louisville, KY",
+        1.0,
+        False,
+    )
+    assert finding_addr.result == CheckResult.MATCH
+
+    finding_addr2 = compare_field(
+        "producer_name_address",
+        "123 Main Street, California",
+        "123 Main St, CA",
+        1.0,
+        False,
+    )
+    assert finding_addr2.result == CheckResult.MATCH
 

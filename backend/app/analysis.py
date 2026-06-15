@@ -24,6 +24,32 @@ ALLOWED_IMAGE_TYPES = {".png", ".jpg", ".jpeg", ".webp", ".svg"}
 MAX_IMAGE_BYTES = 15 * 1024 * 1024
 
 
+STATE_MAPPING = {
+    "alabama": "al", "alaska": "ak", "arizona": "az", "arkansas": "ar", "california": "ca",
+    "colorado": "co", "connecticut": "ct", "delaware": "de", "florida": "fl", "georgia": "ga",
+    "hawaii": "hi", "idaho": "id", "illinois": "il", "indiana": "in", "iowa": "ia",
+    "kansas": "ks", "kentucky": "ky", "louisiana": "la", "maine": "me", "maryland": "md",
+    "massachusetts": "ma", "michigan": "mi", "minnesota": "mn", "mississippi": "ms", "missouri": "mo",
+    "montana": "mt", "nebraska": "ne", "nevada": "nv", "new hampshire": "nh", "new jersey": "nj",
+    "new mexico": "nm", "new york": "ny", "north carolina": "nc", "north-dakota": "nd", "ohio": "oh",
+    "oklahoma": "ok", "oregon": "or", "pennsylvania": "pa", "rhode island": "ri", "south carolina": "sc",
+    "south dakota": "sd", "tennessee": "tn", "texas": "tx", "utah": "ut", "vermont": "vt",
+    "virginia": "va", "washington": "wa", "west virginia": "wv", "wisconsin": "wi", "wyoming": "wy"
+}
+
+ADDRESS_ABBREVIATIONS = {
+    "street": "st",
+    "avenue": "ave",
+    "road": "rd",
+    "boulevard": "blvd",
+    "drive": "dr",
+    "court": "ct",
+    "lane": "ln",
+    "highway": "hwy",
+    "parkway": "pkwy",
+}
+
+
 def normalize(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", value.casefold()).strip()
 
@@ -49,6 +75,24 @@ def compare_field(
         expected_tokens = set(expected_normalized.split())
         observed_tokens = set(label_normalized.split())
         matched = bool(expected_tokens) and expected_tokens <= observed_tokens
+    elif field_name == "producer_name_address":
+        norm_expected = expected_normalized
+        norm_label = label_normalized
+        for state, abbr in STATE_MAPPING.items():
+            norm_expected = re.sub(rf"\b{state}\b", abbr, norm_expected)
+            norm_label = re.sub(rf"\b{state}\b", abbr, norm_label)
+        for full_word, abbr in ADDRESS_ABBREVIATIONS.items():
+            norm_expected = re.sub(rf"\b{full_word}\b", abbr, norm_expected)
+            norm_label = re.sub(rf"\b{full_word}\b", abbr, norm_label)
+        matched = compact(norm_expected) in compact(norm_label)
+    elif field_name == "net_contents":
+        norm_expected = expected_normalized
+        norm_label = label_normalized
+        norm_expected = re.sub(r"\bmilliliters?\b", "ml", norm_expected)
+        norm_expected = re.sub(r"\bliters?\b", "l", norm_expected)
+        norm_label = re.sub(r"\bmilliliters?\b", "ml", norm_label)
+        norm_label = re.sub(r"\bliters?\b", "l", norm_label)
+        matched = compact(norm_expected) in compact(norm_label)
     else:
         matched = compact(expected) in compact(label_text)
     uncertain = confidence < 0.54 or (not matched and has_low_confidence_image)
