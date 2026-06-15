@@ -357,3 +357,62 @@ def test_smart_compare_field_normalizations() -> None:
     )
     assert finding_addr2.result == CheckResult.MATCH
 
+    # Test compass direction and business normalizations
+    finding_addr3 = compare_field(
+        "producer_name_address",
+        "123 North Main Street, Old Tom Distilling Company Incorporated",
+        "123 N Main St, Old Tom Distilling Co. Inc.",
+        1.0,
+        False,
+    )
+    assert finding_addr3.result == CheckResult.MATCH
+
+    # Test volume equivalency (750 ml == 0.75 l)
+    finding_vol_eq = compare_field(
+        "net_contents",
+        "750 ml",
+        "0.75 L",
+        1.0,
+        False,
+    )
+    assert finding_vol_eq.result == CheckResult.MATCH
+
+    finding_vol_eq2 = compare_field(
+        "net_contents",
+        "1.75 Liters",
+        "1750 mL",
+        1.0,
+        False,
+    )
+    assert finding_vol_eq2.result == CheckResult.MATCH
+
+    # Test float-based alcohol/proof matching
+    finding_alc = compare_field(
+        "alcohol_content",
+        "45% Alc./Vol. (90 Proof)",
+        "45.0% alc/vol 90.0 proof",
+        1.0,
+        False,
+    )
+    assert finding_alc.result == CheckResult.MATCH
+
+    # Test country of origin synonym normalizations
+    finding_country = compare_field(
+        "country_of_origin",
+        "United States of America",
+        "Product of U.S.A.",
+        1.0,
+        False,
+    )
+    assert finding_country.result == CheckResult.MATCH
+
+    finding_country2 = compare_field(
+        "country_of_origin",
+        "United Kingdom",
+        "Made in the U.K.",
+        1.0,
+        False,
+    )
+    assert finding_country2.result == CheckResult.MATCH
+
+

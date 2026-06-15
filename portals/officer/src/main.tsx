@@ -79,6 +79,48 @@ function normalizeReview(review: Partial<Review>): Review {
   };
 }
 
+function renderResultBadge(result: string) {
+  const statusClass = result.toLowerCase().replaceAll(" ", "-");
+  let icon = null;
+  if (result === "Match") {
+    icon = (
+      <svg className="badge-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" style={{ width: '14px', height: '14px', marginRight: '4px', verticalAlign: 'middle', display: 'inline-block' }}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+      </svg>
+    );
+  } else if (result === "Likely Match") {
+    icon = (
+      <svg className="badge-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeDasharray="3 3" style={{ width: '14px', height: '14px', marginRight: '4px', verticalAlign: 'middle', display: 'inline-block' }}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+      </svg>
+    );
+  } else if (result === "Missing") {
+    icon = (
+      <svg className="badge-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" style={{ width: '14px', height: '14px', marginRight: '4px', verticalAlign: 'middle', display: 'inline-block' }}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+      </svg>
+    );
+  } else if (result === "Likely Missing" || result === "Needs Human Review") {
+    icon = (
+      <svg className="badge-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" style={{ width: '14px', height: '14px', marginRight: '4px', verticalAlign: 'middle', display: 'inline-block' }}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+      </svg>
+    );
+  } else {
+    icon = (
+      <svg className="badge-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" style={{ width: '14px', height: '14px', marginRight: '4px', verticalAlign: 'middle', display: 'inline-block' }}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+      </svg>
+    );
+  }
+  return (
+    <span className={`result ${statusClass}`} style={{ display: 'inline-flex', alignItems: 'center' }}>
+      {icon}
+      <span>{result}</span>
+    </span>
+  );
+}
+
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [queue, setQueue] = useState<Review[]>([]);
@@ -377,9 +419,7 @@ function App() {
                     <article key={finding.rule_id}>
                       <div className="finding-title">
                         <h3>{finding.field_name.replaceAll("_", " ")}</h3>
-                        <span className={`result ${finding.result.toLowerCase().replaceAll(" ", "-")}`}>
-                          {finding.result}
-                        </span>
+                        {renderResultBadge(finding.result)}
                       </div>
                       <dl>
                         <dt>Expected</dt><dd>{finding.expected}</dd>

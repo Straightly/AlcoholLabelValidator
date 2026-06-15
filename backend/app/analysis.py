@@ -47,6 +47,23 @@ ADDRESS_ABBREVIATIONS = {
     "lane": "ln",
     "highway": "hwy",
     "parkway": "pkwy",
+    "north": "n",
+    "south": "s",
+    "east": "e",
+    "west": "w",
+    "suite": "ste",
+    "apartment": "apt",
+    "building": "bldg",
+    "floor": "fl",
+    "room": "rm",
+    "square": "sq",
+    "terrace": "ter",
+    "place": "pl",
+    "expressway": "expy",
+    "incorporated": "inc",
+    "corporation": "corp",
+    "company": "co",
+    "limited": "ltd",
 }
 
 
@@ -56,6 +73,24 @@ def normalize(value: str) -> str:
 
 def compact(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", value.casefold())
+
+
+def parse_volume_ml(text: str) -> float | None:
+    text_lower = text.lower()
+    text_lower = re.sub(r"\bmilliliters?\b", "ml", text_lower)
+    text_lower = re.sub(r"\bcentiliters?\b", "cl", text_lower)
+    text_lower = re.sub(r"\bliters?\b", "l", text_lower)
+    match = re.search(r"(\d+(?:\.\d+)?)\s*(ml|cl|l)\b", text_lower)
+    if match:
+        val = float(match.group(1))
+        unit = match.group(2)
+        if unit == "ml":
+            return val
+        elif unit == "cl":
+            return val * 10.0
+        elif unit == "l":
+            return val * 1000.0
+    return None
 
 
 def compare_field(
@@ -68,9 +103,12 @@ def compare_field(
     expected_normalized = normalize(expected)
     label_normalized = normalize(label_text)
     if field_name == "alcohol_content":
-        expected_numbers = re.findall(r"\d+(?:\.\d+)?", expected)
-        observed_numbers = re.findall(r"\d+(?:\.\d+)?", label_text)
-        matched = bool(expected_numbers) and all(number in observed_numbers for number in expected_numbers)
+        expected_numbers = [float(n) for n in re.findall(r"\d+(?:\.\d+)?", expected)]
+        observed_numbers = [float(n) for n in re.findall(r"\d+(?:\.\d+)?", label_text)]
+        matched = bool(expected_numbers) and all(
+            any(abs(exp - obs) < 0.1 for obs in observed_numbers)
+            for exp in expected_numbers
+        )
     elif field_name == "class_type":
         expected_tokens = set(expected_normalized.split())
         observed_tokens = set(label_normalized.split())
@@ -92,6 +130,24 @@ def compare_field(
         norm_expected = re.sub(r"\bliters?\b", "l", norm_expected)
         norm_label = re.sub(r"\bmilliliters?\b", "ml", norm_label)
         norm_label = re.sub(r"\bliters?\b", "l", norm_label)
+        
+        exp_val = parse_volume_ml(expected)
+        lbl_val = parse_volume_ml(label_text)
+        if exp_val is not None and lbl_val is not None:
+            matched = abs(exp_val - lbl_val) < 1.0
+        else:
+            matched = compact(norm_expected) in compact(norm_label)
+    elif field_name == "country_of_origin":
+        norm_expected = expected_normalized
+        norm_label = label_normalized
+        us_synonyms = [r"\bunited states of america\b", r"\bunited states\b", r"\bu\s*s\s*a\b", r"\bu\s*s\b"]
+        for syn in us_synonyms:
+            norm_expected = re.sub(syn, "usa", norm_expected)
+            norm_label = re.sub(syn, "usa", norm_label)
+        uk_synonyms = [r"\bunited kingdom\b", r"\bu\s*k\b", r"\bgreat britain\b", r"\bgb\b"]
+        for syn in uk_synonyms:
+            norm_expected = re.sub(syn, "uk", norm_expected)
+            norm_label = re.sub(syn, "uk", norm_label)
         matched = compact(norm_expected) in compact(norm_label)
     else:
         matched = compact(expected) in compact(label_text)
@@ -117,6 +173,7 @@ def compare_field(
         ),
         source="Application-to-label comparison",
     )
+
 
 
 def warning_finding(label_text: str, confidence: float) -> Finding:
