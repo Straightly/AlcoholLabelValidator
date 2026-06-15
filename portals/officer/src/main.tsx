@@ -115,6 +115,7 @@ function App() {
     setIntakeStatus((current) => ({ ...current, ...status, started: status.started ?? current?.started ?? false }));
     if (status.state === "completed") {
       await refresh();
+      setMessage((current) => current.startsWith("Background preprocessing started") ? "" : current);
     }
     return status;
   }
@@ -245,6 +246,11 @@ function App() {
             </button>
           ))}
         </nav>
+        <div style={{ marginTop: "2rem", borderTop: "1px dashed #667085", paddingTop: "1rem" }}>
+          <small style={{ display: "block", color: "#f6c945", fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.5rem", fontSize: "0.75rem" }}>
+            POC Demonstration Controls
+          </small>
+        </div>
         <button className="refresh" disabled={busy} onClick={() => void refreshWorkspace()}>Refresh queue</button>
         <button
           className="reset"
