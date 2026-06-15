@@ -136,6 +136,10 @@ class LocalVisionEngine:
                     "prompt": "Transcribe all readable text on this alcohol label verbatim.",
                     "images": [base64_image],
                     "stream": False,
+                    "options": {
+                        "temperature": 0.0,
+                        "num_predict": 300,
+                    }
                 }
                 data = json.dumps(payload).encode("utf-8")
 
@@ -146,7 +150,7 @@ class LocalVisionEngine:
                     method="POST",
                 )
 
-                with urllib.request.urlopen(req, timeout=120.0) as response:
+                with urllib.request.urlopen(req, timeout=300.0) as response:
                     res_body = json.loads(response.read().decode("utf-8"))
                     text = res_body.get("response", "").strip()
 
