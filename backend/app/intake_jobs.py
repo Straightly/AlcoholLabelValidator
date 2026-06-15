@@ -17,7 +17,7 @@ class IntakeJobStatus:
     packages_imported: int = 0
     packages_skipped: int = 0
     applications_preprocessed: int = 0
-    applications_with_errors: int = 0
+    applications_needing_manual_review: int = 0
 
 
 def utc_now_iso() -> str:
@@ -66,7 +66,10 @@ class IntakeJobRunner:
         with self._lock:
             self._status.state = "completed"
             self._status.message = (
-                "Background preprocessing completed. Refresh the queue to review new applications."
+                "Background preprocessing completed. Refresh the queue to review new applications. "
+                "This simulates AI image processing of submitted applications. In production, "
+                "all submitted applications would be pre-processed before compliance officers "
+                "view and process them, so the background work would not slow officers down at all."
             )
             self._status.finished_at = utc_now_iso()
             for key, value in result.items():

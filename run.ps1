@@ -6,6 +6,9 @@ $Frontend = Join-Path $RootDir "portals\officer\dist\index.html"
 $HostAddress = if ($env:ALV_HOST) { $env:ALV_HOST } else { "127.0.0.1" }
 $Port = if ($env:ALV_PORT) { $env:ALV_PORT } else { "8000" }
 $env:ALV_OCR_ENGINE = "paddle"
+if (-not $env:ALV_FIXTURE_DIR) {
+    $env:ALV_FIXTURE_DIR = Join-Path $RootDir "fixtures\evaluation-real"
+}
 
 if (-not (Test-Path $Python)) {
     throw "Missing .venv. Follow the Windows setup instructions in README.md first."

@@ -2,6 +2,7 @@ import shutil
 import time
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from backend.app.analysis import warning_finding
@@ -116,14 +117,19 @@ def test_process_sample_intake_is_idempotent(tmp_path: Path) -> None:
         completed = wait_for_sample_intake(client)
         assert completed | {"started": True} == {
             "state": "completed",
-            "message": "Background preprocessing completed. Refresh the queue to review new applications.",
+            "message": (
+                "Background preprocessing completed. Refresh the queue to review new applications. "
+                "This simulates AI image processing of submitted applications. In production, "
+                "all submitted applications would be pre-processed before compliance officers "
+                "view and process them, so the background work would not slow officers down at all."
+            ),
             "started_at": completed["started_at"],
             "finished_at": completed["finished_at"],
             "packages_found": 1,
             "packages_imported": 1,
             "packages_skipped": 0,
             "applications_preprocessed": 2,
-            "applications_with_errors": 0,
+            "applications_needing_manual_review": 0,
             "started": True,
         }
         queue = client.get("/api/review-queue").json()
@@ -138,6 +144,61 @@ def test_process_sample_intake_is_idempotent(tmp_path: Path) -> None:
 
         assert client.post("/api/demo/reset").status_code == 200
         assert client.get("/api/review-queue").json() == []
+
+
+def test_process_sample_intake_ignores_user_working_files(tmp_path: Path) -> None:
+    fixture_dir = tmp_path / "fixtures"
+    fixture_dir.mkdir()
+    source = Path(__file__).resolve().parents[2] / "fixtures" / "intake"
+    shutil.copy2(source / "sample-distilled-spirits-batch.json", fixture_dir / "sample-distilled-spirits-batch.json")
+    for image_name in (
+        "sample-compliant-front.png",
+        "sample-compliant-back.png",
+        "sample-attention-front.png",
+        "sample-attention-back.png",
+    ):
+        shutil.copy2(source / image_name, fixture_dir / image_name)
+        shutil.copy2(source / f"{image_name}.ocr.txt", fixture_dir / f"{image_name}.ocr.txt")
+
+    user_dir = fixture_dir / "user"
+    user_dir.mkdir()
+    (user_dir / "single-submission-bad.json").write_text('{"not":"a valid submission"}', encoding="utf-8")
+
+    with TestClient(create_app(tmp_path, fixture_dir)) as client:
+        client.post("/api/demo/process-sample-intake")
+        completed = wait_for_sample_intake(client)
+        assert completed["packages_found"] == 1
+        assert completed["packages_imported"] == 1
+        assert completed["packages_skipped"] == 0
+        assert completed["applications_preprocessed"] == 2
+
+
+def test_process_sample_intake_imports_all_top_level_packages(tmp_path: Path) -> None:
+    fixture_dir = tmp_path / "fixtures"
+    fixture_dir.mkdir()
+    source = Path(__file__).resolve().parents[2] / "fixtures" / "evaluation-real"
+    for name in (
+        "real-bottle-evaluation-batch.json",
+        "single-submission-canada.json",
+        "crown-royal-reserve-front.jpg",
+        "crown-royal-reserve-back.jpg",
+        "glenlivet-good-front.jpg",
+        "glenlivet-good-back.jpg",
+        "glenlivet-bad-front.jpg",
+        "red-blend-portugal-good-front.jpg",
+        "red-blend-portugal-good-back.jpg",
+        "red-blend-portugal-skewed-back.jpg",
+    ):
+        shutil.copy2(source / name, fixture_dir / name)
+
+    with TestClient(create_app(tmp_path, fixture_dir)) as client:
+        client.post("/api/demo/process-sample-intake")
+        completed = wait_for_sample_intake(client)
+        assert completed["packages_found"] == 2
+        assert completed["packages_imported"] == 2
+        assert completed["packages_skipped"] == 0
+        assert completed["applications_preprocessed"] == 6
+        assert len(client.get("/api/review-queue").json()) == 6
 
 
 def test_approval_requires_override_for_unresolved_findings(tmp_path: Path) -> None:
@@ -172,8 +233,44 @@ def test_approval_requires_override_for_unresolved_findings(tmp_path: Path) -> N
         assert accepted.status_code == 201
 
 
+def test_refresh_queue_restores_preprocessed_samples(tmp_path: Path) -> None:
+    fixture_dir = isolated_fixture_dir(tmp_path)
+    with TestClient(create_app(tmp_path, fixture_dir)) as client:
+        client.post("/api/demo/process-sample-intake")
+        wait_for_sample_intake(client)
+        original_queue = client.get("/api/review-queue").json()
+        assert len(original_queue) == 2
+
+        first = next(
+            item for item in original_queue if all(finding["result"] == "Match" for finding in item["findings"])
+        )
+        decision = client.post(
+            f"/api/reviews/{first['submission_id']}/{first['application_id']}/decision",
+            json={
+                "decision": "Approved",
+                "public_reason": "All implemented checks match the supplied evidence.",
+                "officer_name": "Demo Compliance Officer",
+            },
+        )
+        assert decision.status_code == 201
+        assert len(client.get("/api/review-queue").json()) == 1
+
+        restored = client.post("/api/demo/refresh-queue")
+        assert restored.status_code == 200
+        assert restored.json()["status"] == "queue-restored"
+
+        queue_after_restore = client.get("/api/review-queue").json()
+        assert len(queue_after_restore) == 2
+        assert {
+            item["application_id"] for item in queue_after_restore
+        } == {item["application_id"] for item in original_queue}
+
+
 def test_frontend_and_images_are_served_by_fastapi(tmp_path: Path) -> None:
     fixture_dir = Path(__file__).resolve().parents[2] / "fixtures" / "intake"
+    frontend = Path(__file__).resolve().parents[2] / "portals" / "officer" / "dist" / "index.html"
+    if not frontend.is_file():
+        pytest.skip("Frontend build artifacts are not present.")
     with TestClient(create_app(tmp_path, fixture_dir)) as client:
         assert client.get("/").status_code == 200
         client.post("/api/demo/process-sample-intake")

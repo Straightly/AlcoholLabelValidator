@@ -262,11 +262,20 @@ Open `http://127.0.0.1:8000/`. Press `Ctrl+C` to stop the application.
 | `ALV_HOST` | `127.0.0.1` | Bind address |
 | `ALV_PORT` | `8000` | HTTP port |
 | `ALV_DATA_DIR` | `./data` | Runtime artifact directory |
-| `ALV_FIXTURE_DIR` | `./fixtures/intake` | Sample intake directory |
+| `ALV_FIXTURE_DIR` | `./fixtures/evaluation-real` | Sample intake directory |
 
 ## Add Your Own Bottle Photographs
 
-Use:
+The default demo intake uses the committed real-image evaluation set in:
+
+```text
+fixtures/evaluation-real/
+```
+
+To test your own photographs instead, point `ALV_FIXTURE_DIR` at a different
+folder before starting the application.
+
+One staging option is:
 
 ```text
 fixtures/intake/user/
@@ -290,8 +299,19 @@ Then:
 4. Wait for the background preprocessing status to complete.
 5. Open the new applications in the review queue.
 
-The `user` folder is scanned when sample preprocessing runs. Filled manifests
-and photographs there are ignored by Git because it is a private staging area.
+Example:
+
+```bash
+ALV_FIXTURE_DIR=fixtures/intake/user ./run.sh
+```
+
+```powershell
+$env:ALV_FIXTURE_DIR = "fixtures/intake/user"
+powershell -ExecutionPolicy Bypass -File .\run.ps1
+```
+
+Filled manifests and photographs there are ignored by Git because it is a
+private staging area.
 
 Final, reviewed retail-label fixtures belong in:
 
@@ -301,8 +321,8 @@ fixtures/evaluation-real/
 
 That directory is committed to Git so reviewers can reproduce the real-image
 evaluation. It contains only images reviewed for visible personal information
-and stripped of EXIF/GPS metadata. To run only that set, set
-`ALV_FIXTURE_DIR=fixtures/evaluation-real` before starting the application.
+and stripped of EXIF/GPS metadata. This is also the default sample-intake set
+used by `run.sh` and `run.ps1`.
 
 ## Manual Acceptance Test
 

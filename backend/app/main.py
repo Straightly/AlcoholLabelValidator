@@ -21,7 +21,9 @@ def create_app(
     fixture_dir: Path | None = None,
 ) -> FastAPI:
     root = data_dir or Path(os.getenv("ALV_DATA_DIR", "./data"))
-    intake = fixture_dir or Path(os.getenv("ALV_FIXTURE_DIR", str(ROOT_DIR / "fixtures" / "intake")))
+    intake = fixture_dir or Path(
+        os.getenv("ALV_FIXTURE_DIR", str(ROOT_DIR / "fixtures" / "evaluation-real"))
+    )
     store = ArtifactStore(root)
     vision = LocalVisionEngine()
 
@@ -35,20 +37,27 @@ def create_app(
     app.state.fixture_dir = intake
     app.state.vision = vision
 
+    def sample_intake_packages() -> list[Path]:
+        return sorted(
+            path
+            for path in intake.glob("*.json")
+            if path.is_file() and not path.name.startswith(".")
+        )
+
     def import_and_preprocess_sample_intake() -> dict[str, int]:
         result = {
             "packages_found": 0,
             "packages_imported": 0,
             "packages_skipped": 0,
             "applications_preprocessed": 0,
-            "applications_with_errors": 0,
+            "applications_needing_manual_review": 0,
         }
-        for path in sorted(intake.rglob("*.json")):
+        for path in sample_intake_packages():
             result["packages_found"] += 1
             try:
                 payload = SubmissionCreate.model_validate_json(path.read_text(encoding="utf-8"))
             except Exception:
-                result["applications_with_errors"] += 1
+                result["packages_skipped"] += 1
                 continue
             artifact = SubmissionArtifact(**payload.model_dump())
             try:
@@ -68,7 +77,7 @@ def create_app(
                 )
                 store.save_review(review)
                 result["applications_preprocessed"] += 1
-                result["applications_with_errors"] += int(review.processing_error is not None)
+                result["applications_needing_manual_review"] += int(review.processing_error is not None)
         return result
 
     intake_jobs = IntakeJobRunner(import_and_preprocess_sample_intake)
@@ -112,6 +121,14 @@ def create_app(
         store.reset()
         intake_jobs.reset()
         return {"status": "reset"}
+
+    @app.post("/api/demo/refresh-queue")
+    def refresh_demo_queue() -> dict[str, object]:
+        store.clear_decisions()
+        return {
+            "status": "queue-restored",
+            "message": "All preprocessed sample applications have been returned to the review queue.",
+        }
 
     @app.post("/api/submissions", status_code=201)
     def create_submission(payload: SubmissionCreate) -> dict[str, object]:

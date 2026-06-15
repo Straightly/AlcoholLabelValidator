@@ -47,12 +47,36 @@ type IntakeStatus = {
   packages_imported: number;
   packages_skipped: number;
   applications_preprocessed: number;
-  applications_with_errors: number;
+  applications_needing_manual_review: number;
 };
 
 async function responseMessage(response: Response) {
   const body = await response.json().catch(() => null);
   return body?.detail ?? body?.message ?? response.statusText;
+}
+
+function normalizeReview(review: Partial<Review>): Review {
+  return {
+    submission_id: review.submission_id ?? "",
+    application_id: review.application_id ?? "",
+    source_label: review.source_label ?? "",
+    processing_duration_ms: review.processing_duration_ms ?? 0,
+    images: (review.images ?? []).map((image) => ({
+      filename: image.filename ?? "",
+      url: image.url ?? "",
+      extracted_text: image.extracted_text ?? "",
+      confidence: image.confidence ?? 0,
+      width: image.width ?? null,
+      height: image.height ?? null,
+      blur_score: image.blur_score ?? null,
+      glare_ratio: image.glare_ratio ?? null,
+      quality_flags: image.quality_flags ?? [],
+      engine: image.engine ?? "unknown"
+    })),
+    findings: review.findings ?? [],
+    suggested_rejection_reason: review.suggested_rejection_reason ?? null,
+    processing_error: review.processing_error ?? null
+  };
 }
 
 function App() {
@@ -69,22 +93,47 @@ function App() {
     const response = await fetch("/api/review-queue");
     if (!response.ok) {
       setMessage(`Queue could not be loaded: ${await responseMessage(response)}`);
-      return;
+      return null;
     }
-    const items: Review[] = await response.json();
+    const payload = await response.json();
+    const items: Review[] = Array.isArray(payload) ? payload.map(normalizeReview) : [];
     setQueue(items);
     setSelected((current) =>
       current ? items.find((item) => item.application_id === current.application_id) ?? items[0] ?? null : items[0] ?? null
     );
+    return items;
   }
 
   async function refreshIntakeStatus() {
     const response = await fetch("/api/demo/process-sample-intake");
-    if (!response.ok) return;
+    if (!response.ok) return null;
     const status: IntakeStatus = await response.json();
-    setIntakeStatus((current) => ({ ...current, ...status, started: current?.started ?? false }));
+    setIntakeStatus((current) => ({ ...current, ...status, started: status.started ?? current?.started ?? false }));
     if (status.state === "completed") {
       await refresh();
+    }
+    return status;
+  }
+
+  async function refreshWorkspace() {
+    setBusy(true);
+    try {
+      const response = await fetch("/api/demo/refresh-queue", { method: "POST" });
+      if (!response.ok) throw new Error(await responseMessage(response));
+      const body = await response.json();
+      const status = await refreshIntakeStatus();
+      const items = await refresh();
+      if (status?.state === "running") {
+        setMessage(`${body.message} Background preprocessing is still running.`);
+      } else if ((items?.length ?? 0) > 0) {
+        setMessage(`${body.message} ${items?.length ?? 0} application(s) ready for review.`);
+      } else {
+        setMessage("Queue restored. No unreviewed applications are ready yet.");
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "The operation failed.");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -156,9 +205,13 @@ function App() {
       <main className="login-shell">
         <section className="login-card">
           <p className="kicker">Compliance Officer Portal</p>
-          <h1>Evidence first.<br />Judgment stays human.</h1>
+          <h1>Open The Review Queue</h1>
+          <p>
+            This prototype pre-processes sample applications in the background,
+            then shows the completed results here for officer review.
+          </p>
           <p>Demonstration only. The login is not an authorization boundary.</p>
-          <button onClick={() => setLoggedIn(true)}>Open review queue</button>
+          <button onClick={() => setLoggedIn(true)}>Login</button>
         </section>
       </main>
     );
@@ -172,6 +225,26 @@ function App() {
         <p className="kicker">Review Queue</p>
         <h1>{queue.length.toString().padStart(2, "0")}</h1>
         <p>applications ready</p>
+        <nav aria-label="Applications ready for review">
+          {queue.map((item) => (
+            <button
+              className={selected?.application_id === item.application_id ? "active" : ""}
+              key={`${item.submission_id}-${item.application_id}`}
+              onClick={() => setSelected(item)}
+            >
+              <span>{item.application_id}</span>
+              <small>{item.processing_error ? "Needs attention" : item.source_label}</small>
+            </button>
+          ))}
+        </nav>
+        <button className="refresh" disabled={busy} onClick={() => void refreshWorkspace()}>Refresh queue</button>
+        <button
+          className="reset"
+          disabled={busy}
+          onClick={() => void runAction("/api/demo/reset", () => "Demo data reset. Select Process Sample Intake to begin again.")}
+        >
+          Reset Demo Data
+        </button>
         <button
           className="process"
           disabled={busy || intakeStatus?.state === "running"}
@@ -197,14 +270,6 @@ function App() {
         >
           {intakeStatus?.state === "running" ? "Preprocessing…" : busy ? "Working…" : "Process Sample Intake"}
         </button>
-        <button className="refresh" disabled={busy} onClick={() => void refresh()}>Refresh queue</button>
-        <button
-          className="reset"
-          disabled={busy}
-          onClick={() => void runAction("/api/demo/reset", () => "Demo data reset. Select Process Sample Intake to begin again.")}
-        >
-          Reset Demo Data
-        </button>
         {intakeStatus && (
           <section className={`intake-status ${intakeStatus.state}`}>
             <strong>Preprocessing status</strong>
@@ -218,23 +283,11 @@ function App() {
               <small>
                 Packages: {intakeStatus.packages_imported}/{intakeStatus.packages_found} imported,
                 {" "}Applications: {intakeStatus.applications_preprocessed},
-                {" "}Errors: {intakeStatus.applications_with_errors}
+                {" "}Needs officer review: {intakeStatus.applications_needing_manual_review}
               </small>
             )}
           </section>
         )}
-        <nav aria-label="Applications ready for review">
-          {queue.map((item) => (
-            <button
-              className={selected?.application_id === item.application_id ? "active" : ""}
-              key={`${item.submission_id}-${item.application_id}`}
-              onClick={() => setSelected(item)}
-            >
-              <span>{item.application_id}</span>
-              <small>{item.processing_error ? "Needs attention" : item.source_label}</small>
-            </button>
-          ))}
-        </nav>
       </aside>
       <section className="workspace">
         <header>
@@ -247,7 +300,15 @@ function App() {
         <p className="boundary">
           Standalone procurement POC. Publication-safe samples only; no COLAs Online connection and no applicant PII.
         </p>
-        {!selected && <div className="empty">No unreviewed applications are waiting.</div>}
+        {!selected && (
+          <div className="empty">
+            <strong>No unreviewed applications are waiting.</strong>
+            <p>
+              Select <code>Process Sample Intake</code> to start background preprocessing,
+              then wait for the status box to show completion.
+            </p>
+          </div>
+        )}
         {selected && (
           <>
             <div className="context">

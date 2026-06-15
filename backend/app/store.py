@@ -108,6 +108,11 @@ class ArtifactStore:
         path = self.root / "decisions" / submission_id / f"{application_id}.json"
         return self.read_json(path) if path.exists() else None
 
+    def clear_decisions(self) -> None:
+        path = self.root / "decisions"
+        shutil.rmtree(path, ignore_errors=True)
+        path.mkdir(parents=True, exist_ok=True)
+
     def reset(self) -> None:
         for name in ("submissions", "preprocessed", "decisions", "staging"):
             path = self.root / name

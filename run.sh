@@ -7,6 +7,7 @@ PYTHON="$ROOT_DIR/.venv/bin/python"
 HOST="${ALV_HOST:-127.0.0.1}"
 PORT="${ALV_PORT:-8000}"
 export ALV_OCR_ENGINE="paddle"
+export ALV_FIXTURE_DIR="${ALV_FIXTURE_DIR:-$ROOT_DIR/fixtures/evaluation-real}"
 
 if [[ ! -x "$PYTHON" ]]; then
   echo "Missing .venv. Follow the Linux setup instructions in README.md first." >&2
