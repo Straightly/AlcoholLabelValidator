@@ -76,7 +76,7 @@ def compare_field(
 
 
 def warning_finding(label_text: str, confidence: float) -> Finding:
-    exact = HEALTH_WARNING in " ".join(label_text.split())
+    exact = HEALTH_WARNING.casefold() in " ".join(label_text.split()).casefold()
     normalized = normalize(HEALTH_WARNING) in normalize(label_text)
     warning_detected = "government warning" in normalize(label_text)
     

@@ -97,21 +97,29 @@ class LocalVisionEngine:
         self.detail = "Fixture sidecars enabled; real images require PaddleOCR/Tesseract."
 
     def analyze(self, image_path: Path) -> VisionResult:
+        import time
+        start_time = time.perf_counter()
+
+        print(f"[VisionEngine] Starting analysis of {image_path.name} (Engine: {self.engine_name})", flush=True)
+
         metrics = self._quality_metrics(image_path)
         sidecar = image_path.with_suffix(image_path.suffix + ".ocr.txt")
+
+        result = None
+
         if sidecar.exists() and self.engine_name == "fixture-sidecar":
-            return VisionResult(
+            result = VisionResult(
                 text=sidecar.read_text(encoding="utf-8").strip(),
                 confidence=0.99,
                 engine="fixture-sidecar",
                 **metrics,
             )
-        if self.engine_name == "Tesseract":
+        elif self.engine_name == "Tesseract":
             try:
                 import pytesseract
-
+                print(f"[VisionEngine] Running Tesseract OCR on {image_path.name}...", flush=True)
                 text = pytesseract.image_to_string(str(image_path)).strip()
-                return VisionResult(
+                result = VisionResult(
                     text=text,
                     confidence=0.85,
                     engine="Tesseract",
@@ -119,7 +127,7 @@ class LocalVisionEngine:
                 )
             except Exception as exc:
                 raise RuntimeError(f"Tesseract OCR failed: {exc}")
-        if self.engine_name == "Ollama":
+        elif self.engine_name == "Ollama":
             try:
                 import base64
                 import json
@@ -130,6 +138,8 @@ class LocalVisionEngine:
 
                 ollama_host = os.getenv("ALV_OLLAMA_HOST", "http://localhost:11434").rstrip("/")
                 model_name = os.getenv("ALV_OLLAMA_MODEL", "moondream")
+
+                print(f"[VisionEngine] Sending {image_path.name} to Ollama local API (Model: {model_name})...", flush=True)
 
                 payload = {
                     "model": model_name,
@@ -154,7 +164,7 @@ class LocalVisionEngine:
                     res_body = json.loads(response.read().decode("utf-8"))
                     text = res_body.get("response", "").strip()
 
-                return VisionResult(
+                result = VisionResult(
                     text=text,
                     confidence=0.95,
                     engine=f"Ollama ({model_name})",
@@ -162,33 +172,42 @@ class LocalVisionEngine:
                 )
             except Exception as exc:
                 raise RuntimeError(f"Ollama VLM failed: {exc}")
-        if self._ocr is None:
-            raise RuntimeError(
-                "No OCR model is available for this image. Run scripts/prepare_models.py "
-                "or use the committed demonstration fixtures."
+        else:
+            if self._ocr is None:
+                raise RuntimeError(
+                    "No OCR model is available for this image. Run scripts/prepare_models.py "
+                    "or use the committed demonstration fixtures."
+                )
+
+            print(f"[VisionEngine] Running PaddleOCR on {image_path.name}...", flush=True)
+            output = self._ocr.predict(str(image_path))
+            texts: list[str] = []
+            scores: list[float] = []
+            for page in output:
+                payload = page.json if hasattr(page, "json") else page
+                if callable(payload):
+                    payload = payload()
+                if isinstance(payload, str):
+                    import json
+
+                    payload = json.loads(payload)
+                data = payload.get("res", payload) if isinstance(payload, dict) else {}
+                texts.extend(str(item) for item in data.get("rec_texts", []))
+                scores.extend(float(item) for item in data.get("rec_scores", []))
+            confidence = sum(scores) / len(scores) if scores else 0.0
+            result = VisionResult(
+                text="\n".join(texts),
+                confidence=confidence,
+                engine="PaddleOCR",
+                **metrics,
             )
 
-        output = self._ocr.predict(str(image_path))
-        texts: list[str] = []
-        scores: list[float] = []
-        for page in output:
-            payload = page.json if hasattr(page, "json") else page
-            if callable(payload):
-                payload = payload()
-            if isinstance(payload, str):
-                import json
+        duration = time.perf_counter() - start_time
+        print(f"[VisionEngine] Done processing {image_path.name} in {duration:.2f}s (Engine: {result.engine}). Chars extracted: {len(result.text)}", flush=True)
+        preview = result.text.replace('\n', ' | ')[:150]
+        print(f"[VisionEngine] Extracted text preview: '{preview}...'", flush=True)
 
-                payload = json.loads(payload)
-            data = payload.get("res", payload) if isinstance(payload, dict) else {}
-            texts.extend(str(item) for item in data.get("rec_texts", []))
-            scores.extend(float(item) for item in data.get("rec_scores", []))
-        confidence = sum(scores) / len(scores) if scores else 0.0
-        return VisionResult(
-            text="\n".join(texts),
-            confidence=confidence,
-            engine="PaddleOCR",
-            **metrics,
-        )
+        return result
 
     def _quality_metrics(self, image_path: Path) -> dict[str, Any]:
         try:

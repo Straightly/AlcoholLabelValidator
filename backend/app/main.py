@@ -84,6 +84,7 @@ def create_app(
         )
 
     def import_and_preprocess_sample_intake() -> dict[str, int]:
+        print("[Intake] Starting sample intake background preprocessing job...", flush=True)
         result = {
             "packages_found": 0,
             "packages_imported": 0,
@@ -93,21 +94,26 @@ def create_app(
         }
         for path in sample_intake_packages():
             result["packages_found"] += 1
+            print(f"[Intake] Processing package file: {path.name}", flush=True)
             try:
                 payload = SubmissionCreate.model_validate_json(path.read_text(encoding="utf-8"))
-            except Exception:
+            except Exception as exc:
+                print(f"[Intake] Skipped package {path.name}: Failed to validate JSON schema ({exc})", flush=True)
                 result["packages_skipped"] += 1
                 continue
             artifact = SubmissionArtifact(**payload.model_dump())
             try:
                 store.save_submission(artifact)
             except ArtifactExistsError:
+                print(f"[Intake] Skipped package {path.name}: Artifact submission-id '{artifact.submission_id}' already exists in datastore.", flush=True)
                 result["packages_skipped"] += 1
                 continue
             image_names = [name for item in artifact.applications for name in item.image_filenames]
+            print(f"[Intake] Importing images {image_names} for submission {artifact.submission_id}...", flush=True)
             store.import_images(artifact.submission_id, path.parent, image_names)
             result["packages_imported"] += 1
             for application in artifact.applications:
+                print(f"[Intake] Preprocessing application {application.application_id} (Category: {application.beverage_category})...", flush=True)
                 review = analyze_application(
                     artifact,
                     application,
@@ -117,6 +123,8 @@ def create_app(
                 store.save_review(review)
                 result["applications_preprocessed"] += 1
                 result["applications_needing_manual_review"] += int(review.processing_error is not None)
+                print(f"[Intake] Application {application.application_id} preprocessed. Errors: {review.processing_error}", flush=True)
+        print(f"[Intake] Sample intake background job completed. Summary: {result}", flush=True)
         return result
 
     intake_jobs = IntakeJobRunner(import_and_preprocess_sample_intake)
