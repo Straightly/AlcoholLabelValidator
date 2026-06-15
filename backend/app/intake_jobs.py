@@ -10,7 +10,10 @@ from typing import Callable
 class IntakeJobStatus:
     started: bool = False
     state: str = "idle"
-    message: str = "No sample intake job is running."
+    message: str = (
+        "No sample intake job is running. (Note: Preprocessing batch labels on this VM "
+        "takes up to 30 minutes due to CPU/RAM limits. In production, this runs in seconds on GPU hardware.)"
+    )
     started_at: str | None = None
     finished_at: str | None = None
     packages_found: int = 0
